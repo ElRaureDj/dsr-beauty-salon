@@ -6,6 +6,7 @@ import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { CartProvider } from './cart/CartProvider';
 import { UserProvider } from './data/UserProvider';
 import { CatalogProvider } from './data/CatalogProvider';
+import { AppointmentsProvider } from './data/AppointmentsProvider';
 import { CartDrawer, TabBar, TopChrome } from './components/atoms';
 import type { TabId } from './types';
 
@@ -28,6 +29,7 @@ import { NailLookDetail } from './screens/NailLookDetail';
 import { GiftCards } from './screens/GiftCards';
 import { GiftBuy } from './screens/GiftBuy';
 import { GiftMine } from './screens/GiftMine';
+import { AppointmentDetail } from './screens/AppointmentDetail';
 
 // Routes that should hide the bottom tab bar
 const HIDE_TAB_ROUTES: ReadonlyArray<string> = [
@@ -43,6 +45,7 @@ const HIDE_TAB_ROUTES: ReadonlyArray<string> = [
   'gift-buy',
   'gift-mine',
   'profile',
+  'appointment',
 ];
 
 // Pantallas donde no tiene sentido el chrome top (avatar/cart):
@@ -110,6 +113,8 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
       return <GiftBuy initial={{ design: params.design }} />;
     case 'gift-mine':
       return <GiftMine />;
+    case 'appointment':
+      return <AppointmentDetail id={params.id ?? ''} />;
     default:
       // unreachable but keeps the compiler happy
       go('home');
@@ -198,11 +203,13 @@ export default function App() {
       <LangProvider initialLang="es">
         <UserProvider>
           <CatalogProvider>
-            <CartProvider>
-              <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
-                <RootLayout onOnboardingDone={() => setSeen(true)} />
-              </RouterProvider>
-            </CartProvider>
+            <AppointmentsProvider>
+              <CartProvider>
+                <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
+                  <RootLayout onOnboardingDone={() => setSeen(true)} />
+                </RouterProvider>
+              </CartProvider>
+            </AppointmentsProvider>
           </CatalogProvider>
         </UserProvider>
       </LangProvider>

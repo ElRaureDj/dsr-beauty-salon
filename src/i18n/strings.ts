@@ -200,6 +200,13 @@ export interface I18nStrings {
   adminGateInvalid: string;
   adminGateEnter: string;
   adminLock: string;
+  appointmentTitle: string;
+  appointmentReschedule: string;
+  appointmentCancel: string;
+  appointmentCancelled: string;
+  appointmentNotFound: string;
+  appointmentPastBadge: string;
+  appointmentBackHome: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -403,6 +410,13 @@ export const I18N: Record<Lang, I18nStrings> = {
     adminGateInvalid: 'Código incorrecto',
     adminGateEnter: 'Entrar al panel',
     adminLock: 'Cerrar panel',
+    appointmentTitle: 'Tu cita',
+    appointmentReschedule: 'Reagendar',
+    appointmentCancel: 'Cancelar cita',
+    appointmentCancelled: 'Cita cancelada',
+    appointmentNotFound: 'Cita no encontrada',
+    appointmentPastBadge: 'Pasada',
+    appointmentBackHome: 'Volver al inicio',
   },
   en: {
     welcome: 'Welcome',
@@ -602,5 +616,12 @@ export const I18N: Record<Lang, I18nStrings> = {
     adminGateInvalid: 'Wrong code',
     adminGateEnter: 'Enter panel',
     adminLock: 'Lock panel',
+    appointmentTitle: 'Your appointment',
+    appointmentReschedule: 'Reschedule',
+    appointmentCancel: 'Cancel appointment',
+    appointmentCancelled: 'Appointment cancelled',
+    appointmentNotFound: 'Appointment not found',
+    appointmentPastBadge: 'Past',
+    appointmentBackHome: 'Back to home',
   },
 };

@@ -17,6 +17,7 @@ import {
   Tiny,
 } from '../components/atoms';
 import { useCatalog } from '../data/CatalogProvider';
+import { useAppointments } from '../data/AppointmentsProvider';
 import { STORIES, USER } from '../data/user';
 import { greeting, nextTier, tierFor } from '../data/helpers';
 import { I, IMG_HERO_SPRING, IMG_LOOK_OF_MONTH } from '../data/images';
@@ -27,13 +28,14 @@ export function Home() {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getArtisan, getService, getAllArtisans, getCombos, getAllServices } = useCatalog();
+  const { getUpcoming } = useAppointments();
   const featuredCombos = getCombos().filter((c) => c.popular);
   const allServicesForCombos = getAllServices();
   const tier = tierFor(USER.points);
   const next = nextTier(USER.points);
 
   const heroImg = IMG_HERO_SPRING();
-  const upcoming = USER.appointments.find((a) => a.status === 'confirmed');
+  const upcoming = getUpcoming();
   const upcomingArt = upcoming ? getArtisan(upcoming.artisan) : null;
 
   return (
@@ -195,6 +197,12 @@ export function Home() {
               }}
             >
               <button
+                onClick={() =>
+                  go('book', {
+                    service: upcoming.services[0],
+                    artisan: upcoming.artisan,
+                  })
+                }
                 className="dsr-press"
                 style={{
                   background: 'transparent',
@@ -211,7 +219,10 @@ export function Home() {
               >
                 {lang === 'es' ? 'Reagendar' : 'Reschedule'}
               </button>
-              <GhostBtn style={{ color: T.gold }}>
+              <GhostBtn
+                onClick={() => go('appointment', { id: upcoming.id })}
+                style={{ color: T.gold }}
+              >
                 {lang === 'es' ? 'Ver cita' : 'View'}
                 <Ico size={11} color={T.gold} stroke={1.6}>
                   {Icons.arrow}

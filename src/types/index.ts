@@ -290,7 +290,8 @@ export type RouteName =
   | 'nail-look'
   | 'gift-cards'
   | 'gift-buy'
-  | 'gift-mine';
+  | 'gift-mine'
+  | 'appointment';
 
 export type TabId = 'home' | 'services' | 'book' | 'rewards' | 'shop';
 
