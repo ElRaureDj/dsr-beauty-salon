@@ -1,0 +1,123 @@
+/* DSR — Global resets & animations */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  font-family: 'Inter Tight', -apple-system, system-ui, sans-serif;
+  color: #f5eddc;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: #d4b886;
+  color: #0a0908;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+}
+
+/* Hidden scrollbars but still scrollable */
+.dsr-scroll::-webkit-scrollbar {
+  display: none;
+}
+.dsr-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes dsr-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dsr-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dsr-shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes dsr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dsr-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.dsr-fadein {
+  animation: dsr-fade-up 0.42s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.dsr-press {
+  transition:
+    transform 0.15s cubic-bezier(0.2, 0.7, 0.3, 1),
+    opacity 0.15s;
+}
+
+.dsr-press:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+/* Subtle film grain overlay (Noir Couture) */
+.dsr-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.83 0 0 0 0 0.72 0 0 0 0 0.52 0 0 0 0.18 0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.5'/></svg>");
+  background-size: 200px;
+}
+
+/* Mobile frame on desktop preview */
+@media (min-width: 480px) {
+  body {
+    background: radial-gradient(circle at 50% 30%, #1a1814 0%, #050505 70%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

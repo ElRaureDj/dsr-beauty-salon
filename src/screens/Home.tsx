@@ -1,0 +1,634 @@
+// DSR — Home (hero · upcoming · AI pick · stories · look-of-month · artisans · member card)
+import { useTheme } from '../theme/ThemeProvider';
+import { useI18n } from '../i18n/LangProvider';
+import {
+  Body,
+  Divider,
+  Eyebrow,
+  GhostBtn,
+  H1,
+  H2,
+  H3,
+  Ico,
+  Icons,
+  Img,
+  Numeral,
+  Screen,
+  Tiny,
+} from '../components/atoms';
+import { ARTISANS } from '../data/catalog';
+import { STORIES, USER } from '../data/user';
+import {
+  findArtisan,
+  findService,
+  greeting,
+  nextTier,
+  tierFor,
+} from '../data/helpers';
+import { I, IMG_HERO_SPRING, IMG_LOOK_OF_MONTH } from '../data/images';
+import { useRouter } from '../router/Router';
+
+export function Home() {
+  const T = useTheme();
+  const { t, lang } = useI18n();
+  const { go } = useRouter();
+  const tier = tierFor(USER.points);
+  const next = nextTier(USER.points);
+
+  const heroImg = IMG_HERO_SPRING();
+  const upcoming = USER.appointments.find((a) => a.status === 'confirmed');
+  const upcomingArt = upcoming ? findArtisan(upcoming.artisan) : null;
+
+  return (
+    <Screen padTop={0} padBottom={110}>
+      {/* Top brand bar */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 60,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 22px',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <Tiny muted style={{ letterSpacing: 1.6 }}>
+            {greeting(lang, t)}
+          </Tiny>
+          <div
+            style={{
+              fontFamily: T.serif,
+              fontSize: 22,
+              color: T.text,
+              fontStyle: 'italic',
+              fontWeight: 300,
+              lineHeight: 1,
+            }}
+          >
+            {USER.name}.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="dsr-press"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 999,
+              border: 'none',
+              background: T.surface,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
+            }}
+          >
+            <Ico size={16} color={T.text}>
+              {Icons.search}
+            </Ico>
+          </button>
+          <button
+            onClick={() => go('profile')}
+            className="dsr-press"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 999,
+              border: 'none',
+              background: T.surface,
+              cursor: 'pointer',
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
+            }}
+          >
+            <Ico size={16} color={T.text}>
+              {Icons.bell}
+            </Ico>
+            <div
+              style={{
+                position: 'absolute',
+                top: 9,
+                right: 10,
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                background: T.gold,
+              }}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* HERO */}
+      <div style={{ position: 'relative', height: 460, marginTop: 0 }}>
+        <Img src={heroImg} style={{ width: '100%', height: '100%' }} />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `linear-gradient(180deg, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.05) 30%, rgba(10,9,8,0.05) 60%, ${T.bg} 100%)`,
+          }}
+        />
+        <div style={{ position: 'absolute', bottom: 30, left: 22, right: 22 }}>
+          <Eyebrow style={{ color: T.goldHi, marginBottom: 12 }}>Édition Printemps · 2026</Eyebrow>
+          <H1 style={{ fontSize: 42, color: '#fff', lineHeight: 1, fontWeight: 300 }}>
+            {lang === 'es' ? 'La nueva luz' : 'The new light'}
+          </H1>
+          <H1
+            style={{
+              fontFamily: T.serif,
+              fontStyle: 'italic',
+              fontSize: 42,
+              color: T.goldHi,
+              lineHeight: 1,
+              marginTop: -2,
+              fontWeight: 300,
+            }}
+          >
+            {lang === 'es' ? 'de la temporada.' : 'of the season.'}
+          </H1>
+          <div style={{ marginTop: 16 }}>
+            <GhostBtn style={{ color: T.goldHi }}>
+              {lang === 'es' ? 'Descubrir el ritual' : 'Discover the ritual'}
+              <Ico size={11} color={T.goldHi} stroke={1.6}>
+                {Icons.arrow}
+              </Ico>
+            </GhostBtn>
+          </div>
+        </div>
+      </div>
+
+      {/* UPCOMING APPOINTMENT */}
+      {upcoming && upcomingArt && (
+        <div style={{ padding: '32px 22px 0' }}>
+          <div
+            style={{
+              background: T.surface,
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
+              padding: 22,
+              position: 'relative',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: 22,
+                right: 22,
+                fontFamily: T.serif,
+                fontStyle: 'italic',
+                fontSize: 12,
+                color: T.gold,
+              }}
+            >
+              {t('upcomingApt')}
+            </div>
+            <Eyebrow style={{ marginBottom: 14 }}>
+              {new Date(upcoming.date).toLocaleDateString(
+                lang === 'es' ? 'es-ES' : 'en-US',
+                { weekday: 'long', day: 'numeric', month: 'long' },
+              )}{' '}
+              · {upcoming.time}
+            </Eyebrow>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+              <Img
+                src={upcomingArt.photo}
+                style={{ width: 52, height: 52, borderRadius: 999, flexShrink: 0 }}
+              />
+              <div style={{ flex: 1 }}>
+                <H3 style={{ fontSize: 19 }}>
+                  {upcoming.services
+                    .map((s) => {
+                      const svc = findService(s);
+                      if (!svc) return s;
+                      return lang === 'es' ? svc.es : svc.en;
+                    })
+                    .join(' + ')}
+                </H3>
+                <Tiny
+                  muted
+                  style={{ marginTop: 4, letterSpacing: 0.4, textTransform: 'none' }}
+                >
+                  {lang === 'es' ? 'con' : 'with'} {upcomingArt.name} · {upcoming.duration} min
+                </Tiny>
+              </div>
+            </div>
+            <Divider style={{ margin: '0 -22px' }} />
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginTop: 14,
+                alignItems: 'center',
+              }}
+            >
+              <button
+                className="dsr-press"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontFamily: T.sans,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  letterSpacing: 1.6,
+                  textTransform: 'uppercase',
+                  color: T.textMuted,
+                }}
+              >
+                {lang === 'es' ? 'Reagendar' : 'Reschedule'}
+              </button>
+              <GhostBtn style={{ color: T.gold }}>
+                {lang === 'es' ? 'Ver cita' : 'View'}
+                <Ico size={11} color={T.gold} stroke={1.6}>
+                  {Icons.arrow}
+                </Ico>
+              </GhostBtn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI PICK */}
+      <div style={{ padding: '36px 22px 0' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 14,
+          }}
+        >
+          <div>
+            <Eyebrow>{t('aiPick')}</Eyebrow>
+            <H3 style={{ marginTop: 6, fontSize: 20 }}>
+              {lang === 'es' ? 'Para tu próxima visita' : 'For your next visit'}
+            </H3>
+          </div>
+          <Numeral value="II" style={{ fontSize: 28 }} />
+        </div>
+        <Body muted style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
+          {t('aiPickDesc')}
+        </Body>
+        <div
+          style={{
+            background: T.surface,
+            padding: 18,
+            boxShadow: `inset 0 0 0 1px ${T.line}`,
+            display: 'flex',
+            gap: 14,
+            alignItems: 'center',
+          }}
+        >
+          <Img src={I('service-balayage')} style={{ width: 78, height: 96, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Tiny style={{ color: T.gold, letterSpacing: 1.4 }}>
+              {lang === 'es' ? 'Recomendado · 96% match' : 'Recommended · 96% match'}
+            </Tiny>
+            <H3 style={{ fontSize: 18, marginTop: 6 }}>
+              {lang === 'es' ? 'Gloss & Brillo' : 'Gloss & Shine'}
+            </H3>
+            <Body muted style={{ fontSize: 12, marginTop: 4, lineHeight: 1.45 }}>
+              {lang === 'es'
+                ? 'Tu tono actual pediría revivir el brillo.'
+                : 'Your current tone is calling for shine.'}
+            </Body>
+          </div>
+          <button
+            onClick={() => go('book')}
+            className="dsr-press"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 999,
+              border: 'none',
+              flexShrink: 0,
+              background: T.gold,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ico size={14} color="#0A0908" stroke={1.8}>
+              {Icons.arrow}
+            </Ico>
+          </button>
+        </div>
+      </div>
+
+      {/* STORIES */}
+      <div style={{ marginTop: 36 }}>
+        <div
+          style={{
+            padding: '0 22px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 14,
+          }}
+        >
+          <Eyebrow>{t('stories')}</Eyebrow>
+          <GhostBtn>{t('seeAll')}</GhostBtn>
+        </div>
+        <div
+          className="dsr-scroll"
+          style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '0 22px' }}
+        >
+          {STORIES.map((s) => {
+            const ar = findArtisan(s.artisan);
+            if (!ar) return null;
+            return (
+              <div
+                key={s.id}
+                style={{ flexShrink: 0, width: 110, position: 'relative', cursor: 'pointer' }}
+              >
+                <div style={{ position: 'relative', height: 150, overflow: 'hidden' }}>
+                  <Img src={s.cover} style={{ width: '100%', height: '100%' }} />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.7) 100%)',
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      left: 8,
+                      width: 26,
+                      height: 26,
+                      borderRadius: 999,
+                      overflow: 'hidden',
+                      border: `1.5px solid ${T.gold}`,
+                    }}
+                  >
+                    <Img src={ar.photo} style={{ width: '100%', height: '100%' }} />
+                  </div>
+                </div>
+                <Tiny
+                  style={{
+                    marginTop: 8,
+                    letterSpacing: 0.3,
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    color: T.text,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {lang === 'es' ? s.title_es : s.title_en}
+                </Tiny>
+                <Tiny muted style={{ marginTop: 2, fontSize: 10 }}>
+                  {ar.name.split(' ')[0]}
+                </Tiny>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* LOOK OF THE MONTH */}
+      <div style={{ marginTop: 44, padding: '0 22px' }}>
+        <div
+          onClick={() => go('nail-atelier')}
+          className="dsr-press"
+          style={{
+            position: 'relative',
+            cursor: 'pointer',
+            overflow: 'hidden',
+            aspectRatio: '4/5',
+          }}
+        >
+          <Img src={IMG_LOOK_OF_MONTH()} style={{ width: '100%', height: '100%' }} />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(180deg, rgba(10,9,8,0.35) 0%, transparent 30%, transparent 55%, rgba(10,9,8,0.85) 100%)',
+            }}
+          />
+          <div style={{ position: 'absolute', top: 22, left: 22, right: 22 }}>
+            <Eyebrow style={{ color: T.goldHi }}>{t('lookOfMonth')}</Eyebrow>
+          </div>
+          <div style={{ position: 'absolute', bottom: 24, left: 22, right: 22 }}>
+            <Numeral value="N°" style={{ fontSize: 12, color: '#fff' }} />
+            <H1
+              style={{
+                marginTop: 2,
+                fontSize: 30,
+                color: '#fff',
+                lineHeight: 0.95,
+                fontWeight: 300,
+              }}
+            >
+              Atelier
+            </H1>
+            <H1
+              style={{
+                fontFamily: T.serif,
+                fontStyle: 'italic',
+                fontSize: 30,
+                color: T.goldHi,
+                lineHeight: 0.95,
+                fontWeight: 300,
+              }}
+            >
+              {lang === 'es' ? 'de Uñas.' : 'of Nails.'}
+            </H1>
+            <div
+              style={{
+                marginTop: 14,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-end',
+              }}
+            >
+              <Tiny
+                style={{
+                  color: 'rgba(245,237,220,0.85)',
+                  letterSpacing: 0.4,
+                  textTransform: 'none',
+                  maxWidth: 200,
+                  lineHeight: 1.4,
+                }}
+              >
+                {t('nailAtelierSub')}
+              </Tiny>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 999,
+                  background: T.gold,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Ico size={14} color={T.bg}>
+                  {Icons.arrow}
+                </Ico>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ARTISANS */}
+      <div style={{ marginTop: 40, padding: '0 22px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 18,
+          }}
+        >
+          <div>
+            <Numeral value="III" style={{ fontSize: 12 }} />
+            <H2 style={{ marginTop: 4 }}>{t('yourArtisans')}</H2>
+          </div>
+          <GhostBtn>{t('seeAll')}</GhostBtn>
+        </div>
+        <div className="dsr-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto' }}>
+          {ARTISANS.slice(0, 4).map((ar) => (
+            <div
+              key={ar.id}
+              onClick={() => go('artisan', { id: ar.id })}
+              style={{ flexShrink: 0, width: 168, cursor: 'pointer' }}
+            >
+              <Img src={ar.photo} style={{ width: '100%', height: 220 }} />
+              <div style={{ marginTop: 12 }}>
+                <H3 style={{ fontSize: 16 }}>{ar.name}</H3>
+                <Tiny
+                  muted
+                  style={{ marginTop: 4, letterSpacing: 0.5, textTransform: 'none', fontWeight: 400 }}
+                >
+                  {lang === 'es' ? ar.role_es : ar.role_en}
+                </Tiny>
+                <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <Ico size={11} color={T.gold} stroke={2}>
+                    {Icons.star}
+                  </Ico>
+                  <Tiny style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'none' }}>
+                    {ar.rating} · {ar.reviews}
+                  </Tiny>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* MEMBER quick view */}
+      <div style={{ marginTop: 40, padding: '0 22px' }}>
+        <div
+          onClick={() => go('rewards')}
+          style={{
+            background: `linear-gradient(135deg, ${T.surface} 0%, ${T.surfaceHi} 100%)`,
+            padding: 22,
+            cursor: 'pointer',
+            boxShadow: `inset 0 0 0 1px ${T.gold}33`,
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: -30,
+              right: -30,
+              width: 140,
+              height: 140,
+              borderRadius: 999,
+              background: `radial-gradient(circle, ${T.gold}22, transparent 70%)`,
+            }}
+          />
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 4,
+            }}
+          >
+            <Eyebrow>
+              {t('member')} · {t('tier')[tier.id]}
+            </Eyebrow>
+            <Tiny style={{ color: T.gold, fontFamily: T.mono, letterSpacing: 1 }}>
+              0294 · DSR
+            </Tiny>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end',
+              marginTop: 16,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontFamily: T.serif,
+                  fontSize: 36,
+                  color: T.gold,
+                  lineHeight: 1,
+                  fontWeight: 300,
+                }}
+              >
+                {USER.points.toLocaleString()}
+              </div>
+              <Tiny
+                muted
+                style={{ marginTop: 4, letterSpacing: 0.5, textTransform: 'none' }}
+              >
+                {t('points')}
+              </Tiny>
+            </div>
+            {next && (
+              <div style={{ textAlign: 'right' }}>
+                <Tiny muted style={{ letterSpacing: 0.5, textTransform: 'none' }}>
+                  {(next.min - USER.points).toLocaleString()} {t('points')}
+                </Tiny>
+                <Tiny
+                  style={{
+                    color: T.gold,
+                    marginTop: 4,
+                    letterSpacing: 0.5,
+                    textTransform: 'none',
+                  }}
+                >
+                  {lang === 'es' ? 'a' : 'to'} {next.name[lang]}
+                </Tiny>
+              </div>
+            )}
+          </div>
+          {next && (
+            <div style={{ marginTop: 14, height: 2, background: T.line }}>
+              <div
+                style={{
+                  width: `${((USER.points - tier.min) / (next.min - tier.min)) * 100}%`,
+                  height: '100%',
+                  background: T.gold,
+                  transition: 'width .6s',
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </Screen>
+  );
+}
