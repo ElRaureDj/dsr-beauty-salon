@@ -15,15 +15,17 @@ import {
 } from '../components/atoms';
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
+import { ReviewsSection } from '../components/ReviewsSection';
 
 export function ArtisanProfile({ id }: { id: string }) {
   const T = useTheme();
   const { lang } = useI18n();
   const { go } = useRouter();
-  const { getArtisan, getAllServices } = useCatalog();
+  const { getArtisan, getAllServices, getReviews } = useCatalog();
   const ar = getArtisan(id);
   if (!ar) return null;
   const services = getAllServices().filter((s) => ar.cats.includes(s.cat));
+  const reviews = getReviews().filter((r) => r.artisanId === ar.id);
 
   return (
     <Screen padTop={0} padBottom={120}>
@@ -149,6 +151,11 @@ export function ArtisanProfile({ id }: { id: string }) {
             ))}
           </div>
         </div>
+
+        <ReviewsSection
+          reviews={reviews}
+          ratingOverride={{ avg: ar.rating, total: ar.reviews }}
+        />
       </div>
 
       {/* Sticky CTA */}

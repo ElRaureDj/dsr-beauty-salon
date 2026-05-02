@@ -185,6 +185,11 @@ export interface I18nStrings {
   promoExpired: string;
   promoExhausted: string;
   promoInactive: string;
+  reviews: string;
+  reviewsAvg: string;
+  salonResponse: string;
+  seeAllReviews: string;
+  noReviewsYet: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -373,6 +378,11 @@ export const I18N: Record<Lang, I18nStrings> = {
     promoExpired: 'Cupón expirado',
     promoExhausted: 'Cupón agotado',
     promoInactive: 'Cupón inactivo',
+    reviews: 'Reseñas',
+    reviewsAvg: 'Promedio',
+    salonResponse: 'Respuesta del salón',
+    seeAllReviews: 'Ver todas',
+    noReviewsYet: 'Aún sin reseñas',
   },
   en: {
     welcome: 'Welcome',
@@ -557,5 +567,10 @@ export const I18N: Record<Lang, I18nStrings> = {
     promoExpired: 'Code expired',
     promoExhausted: 'Code redeemed out',
     promoInactive: 'Code inactive',
+    reviews: 'Reviews',
+    reviewsAvg: 'Average',
+    salonResponse: 'Salon response',
+    seeAllReviews: 'See all',
+    noReviewsYet: 'No reviews yet',
   },
 };

@@ -22,15 +22,17 @@ import { CATEGORIES } from '../data/catalog';
 import { IMG_SERVICE, IMG_SERVICE_DETAIL } from '../data/images';
 import { useRouter } from '../router/Router';
 import { useCatalog, useServiceVariants } from '../data/CatalogProvider';
+import { ReviewsSection } from '../components/ReviewsSection';
 import type { VariantId } from '../data/service-variants';
 
 export function ServiceDetail({ id }: { id: string }) {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const { getProduct, getService, getAllArtisans } = useCatalog();
+  const { getProduct, getService, getAllArtisans, getReviews } = useCatalog();
   const s = getService(id);
   const variantsConfig = useServiceVariants(id);
+  const reviews = getReviews().filter((r) => r.serviceId === id);
 
   const [variantId, setVariantId] = useState<VariantId>('standard');
   const [customAddons, setCustomAddons] = useState<string[]>([]);
@@ -421,6 +423,8 @@ export function ServiceDetail({ id }: { id: string }) {
             ))}
           </div>
         </div>
+
+        <ReviewsSection reviews={reviews} />
       </div>
 
       {/* Sticky CTA */}
