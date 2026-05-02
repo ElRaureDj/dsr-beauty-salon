@@ -13,17 +13,17 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { SERVICES } from '../data/catalog';
-import { findArtisan } from '../data/helpers';
+import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
 export function ArtisanProfile({ id }: { id: string }) {
   const T = useTheme();
   const { lang } = useI18n();
   const { go } = useRouter();
-  const ar = findArtisan(id);
+  const { getArtisan, getAllServices } = useCatalog();
+  const ar = getArtisan(id);
   if (!ar) return null;
-  const services = SERVICES.filter((s) => ar.cats.includes(s.cat));
+  const services = getAllServices().filter((s) => ar.cats.includes(s.cat));
 
   return (
     <Screen padTop={0} padBottom={120}>
@@ -41,14 +41,14 @@ export function ArtisanProfile({ id }: { id: string }) {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, rgba(10,9,8,0.3) 0%, transparent 30%, transparent 50%, ${T.bg} 100%)`,
+            background: `linear-gradient(180deg, rgba(${T.bgRgb},0.3) 0%, transparent 30%, transparent 50%, ${T.bg} 100%)`,
           }}
         />
         <div style={{ position: 'absolute', bottom: 20, left: 22, right: 22 }}>
           <Eyebrow style={{ color: T.goldHi }}>
             {lang === 'es' ? ar.role_es : ar.role_en}
           </Eyebrow>
-          <H1 style={{ fontSize: 38, color: '#fff', marginTop: 8, fontWeight: 300 }}>
+          <H1 style={{ fontSize: 38, color: T.text, marginTop: 8, fontWeight: 300 }}>
             {ar.name}
           </H1>
           <div
@@ -57,7 +57,7 @@ export function ArtisanProfile({ id }: { id: string }) {
               display: 'flex',
               gap: 16,
               alignItems: 'center',
-              color: '#fff',
+              color: T.text,
             }}
           >
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -66,7 +66,7 @@ export function ArtisanProfile({ id }: { id: string }) {
               </Ico>
               <Tiny
                 style={{
-                  color: '#fff',
+                  color: T.text,
                   letterSpacing: 0.4,
                   textTransform: 'none',
                 }}
@@ -82,7 +82,7 @@ export function ArtisanProfile({ id }: { id: string }) {
                 background: 'rgba(255,255,255,0.4)',
               }}
             />
-            <Tiny style={{ color: '#fff', letterSpacing: 0.4, textTransform: 'none' }}>
+            <Tiny style={{ color: T.text, letterSpacing: 0.4, textTransform: 'none' }}>
               {ar.years} {lang === 'es' ? 'años' : 'years'}
             </Tiny>
           </div>

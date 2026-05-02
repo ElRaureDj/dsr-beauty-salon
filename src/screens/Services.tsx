@@ -16,7 +16,8 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { CATEGORIES, SERVICES } from '../data/catalog';
+import { CATEGORIES } from '../data/catalog';
+import { useCatalog } from '../data/CatalogProvider';
 import { IMG_LOOK_OF_MONTH, IMG_SERVICE } from '../data/images';
 import { useRouter } from '../router/Router';
 import type { CategoryId } from '../types';
@@ -26,7 +27,8 @@ export function Services() {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const [cat, setCat] = useState<CategoryId>('hair');
-  const filtered = SERVICES.filter((s) => s.cat === cat);
+  const services = useCatalog().getAllServices();
+  const filtered = services.filter((s) => s.cat === cat);
   const catObj = CATEGORIES.find((c) => c.id === cat)!;
 
   return (
@@ -38,7 +40,7 @@ export function Services() {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, rgba(10,9,8,0.5) 0%, rgba(10,9,8,0.2) 50%, ${T.bg} 100%)`,
+            background: `linear-gradient(180deg, rgba(${T.bgRgb},0.5) 0%, rgba(${T.bgRgb},0.2) 50%, ${T.bg} 100%)`,
           }}
         />
         <div style={{ position: 'absolute', top: 64, left: 22, right: 22 }}>
@@ -46,7 +48,7 @@ export function Services() {
         </div>
         <div style={{ position: 'absolute', bottom: 30, left: 22, right: 22 }}>
           <Numeral value={catObj.tag} style={{ fontSize: 14 }} />
-          <H1 style={{ fontSize: 38, color: '#fff', marginTop: 4, fontWeight: 300 }}>
+          <H1 style={{ fontSize: 38, color: T.text, marginTop: 4, fontWeight: 300 }}>
             {lang === 'es' ? catObj.es : catObj.en}
           </H1>
         </div>

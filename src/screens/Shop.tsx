@@ -10,15 +10,16 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { PRODUCTS } from '../data/catalog';
+import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
 export function Shop() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const products = useCatalog().getAllProducts();
 
-  const featured = PRODUCTS[0];
+  const featured = products[0];
 
   return (
     <Screen padTop={0} padBottom={120}>
@@ -103,7 +104,7 @@ export function Shop() {
           }}
         >
           <Eyebrow>{lang === 'es' ? 'La colección' : 'The collection'}</Eyebrow>
-          <Tiny muted>· {PRODUCTS.length} ·</Tiny>
+          <Tiny muted>· {products.length} ·</Tiny>
         </div>
         <div
           style={{
@@ -113,7 +114,7 @@ export function Shop() {
             columnGap: 12,
           }}
         >
-          {PRODUCTS.slice(1).map((p) => (
+          {products.slice(1).map((p) => (
             <div
               key={p.id}
               onClick={() => go('product', { id: p.id })}

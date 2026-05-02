@@ -102,6 +102,80 @@ export interface I18nStrings {
   purchased: string;
   used: string;
   preview: string;
+  emptyBag: string;
+  emptyBagSub: string;
+  continueShopping: string;
+  removeFromBag: string;
+  orderConfirmed: string;
+  orderConfirmedSub: string;
+  orderNumber: string;
+  emailReceipt: string;
+  backToBoutique: string;
+  resetOnboarding: string;
+  cartProducts: string;
+  cartServices: string;
+  cartEmptyServices: string;
+  cartEmptyProducts: string;
+  cartViewFull: string;
+  saveToBag: string;
+  updateInBag: string;
+  editBooking: string;
+  editingBooking: string;
+  chooseAvatar: string;
+  chooseAvatarSub: string;
+  avatarInitials: string;
+  avatarUpload: string;
+  avatarUploadSoon: string;
+  authWelcome: string;
+  authWelcomeSub: string;
+  continueWithApple: string;
+  continueWithGoogle: string;
+  continueWithWhatsApp: string;
+  authOr: string;
+  authEmailLabel: string;
+  authPasswordLabel: string;
+  authSubmit: string;
+  authNoAccount: string;
+  authCreateAccount: string;
+  authGuest: string;
+  authMockNote: string;
+  authSigningIn: string;
+  variantStandard: string;
+  variantPremium: string;
+  variantCustom: string;
+  variantStandardDesc: string;
+  variantCustomDesc: string;
+  variantAddons: string;
+  variantPickProducts: string;
+  adminTitle: string;
+  adminSub: string;
+  adminProducts: string;
+  adminServices: string;
+  adminVariants: string;
+  adminPremiumLabel: string;
+  adminPremiumLabelEnLabel: string;
+  adminCompatibles: string;
+  adminEnablePremium: string;
+  adminEnableCustom: string;
+  adminResetAll: string;
+  adminOverrides: string;
+  adminOpen: string;
+  combosTitle: string;
+  combosSub: string;
+  combosNew: string;
+  combosBasePrice: string;
+  combosFinalPrice: string;
+  combosDiscount: string;
+  combosServices: string;
+  combosName: string;
+  combosDescription: string;
+  combosFeatured: string;
+  combosDelete: string;
+  combosCustomerTitle: string;
+  combosCustomerSub: string;
+  combosSavePct: string;
+  combosBookCombo: string;
+  combosResetSeed: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -207,6 +281,80 @@ export const I18N: Record<Lang, I18nStrings> = {
     purchased: 'Compradas',
     used: 'Usadas',
     preview: 'Vista previa',
+    emptyBag: 'Tu bolsa espera',
+    emptyBagSub: 'Aún no has añadido nada. Descubre la boutique.',
+    continueShopping: 'Explorar boutique',
+    removeFromBag: 'Quitar de la bolsa',
+    orderConfirmed: 'Pedido confirmado',
+    orderConfirmedSub: 'Te hemos enviado los detalles a tu correo. Llegará en 2–4 días.',
+    orderNumber: 'Pedido',
+    emailReceipt: 'Recibo enviado a tu correo',
+    backToBoutique: 'Volver a la boutique',
+    resetOnboarding: 'Ver bienvenida de nuevo',
+    cartProducts: 'Productos',
+    cartServices: 'Servicios',
+    cartEmptyServices: 'Aún no has guardado un ritual',
+    cartEmptyProducts: 'Aún no has añadido productos',
+    cartViewFull: 'Ver bolsa completa',
+    saveToBag: 'Guardar en bolsa',
+    updateInBag: 'Actualizar en bolsa',
+    editBooking: 'Editar cita',
+    editingBooking: 'Editando cita guardada',
+    chooseAvatar: 'Tu avatar',
+    chooseAvatarSub: 'Una selección curada por la casa.',
+    avatarInitials: 'Iniciales',
+    avatarUpload: 'Subir foto',
+    avatarUploadSoon: 'Disponible próximamente',
+    authWelcome: 'Entra a la Maison',
+    authWelcomeSub: 'Tu próxima experiencia te espera.',
+    continueWithApple: 'Continuar con Apple',
+    continueWithGoogle: 'Continuar con Google',
+    continueWithWhatsApp: 'Continuar con WhatsApp',
+    authOr: 'o',
+    authEmailLabel: 'Correo',
+    authPasswordLabel: 'Contraseña',
+    authSubmit: 'Entrar',
+    authNoAccount: '¿Aún no tienes cuenta?',
+    authCreateAccount: 'Crear una',
+    authGuest: 'Continuar como invitada',
+    authMockNote: 'Demo · sin backend real',
+    authSigningIn: 'Entrando...',
+    variantStandard: 'Estándar',
+    variantPremium: 'Premium',
+    variantCustom: 'Personalizado',
+    variantStandardDesc: 'El ritual base de la casa.',
+    variantCustomDesc: 'Combina los productos que prefieras.',
+    variantAddons: 'Incluye',
+    variantPickProducts: 'Elige tus productos',
+    adminTitle: 'Administración',
+    adminSub: 'Gestiona productos, servicios y variantes.',
+    adminProducts: 'Productos',
+    adminServices: 'Servicios',
+    adminVariants: 'Variantes',
+    adminPremiumLabel: 'Caption Premium (ES)',
+    adminPremiumLabelEnLabel: 'Caption Premium (EN)',
+    adminCompatibles: 'Productos compatibles',
+    adminEnablePremium: 'Activar Premium',
+    adminEnableCustom: 'Activar Personalizado',
+    adminResetAll: 'Restaurar todo',
+    adminOverrides: 'overrides activos',
+    adminOpen: 'Modo administrador',
+    combosTitle: 'Combos',
+    combosSub: 'Paquetes predefinidos con descuento sobre el precio base.',
+    combosNew: 'Nuevo combo',
+    combosBasePrice: 'Precio base',
+    combosFinalPrice: 'Precio final',
+    combosDiscount: 'Descuento',
+    combosServices: 'Servicios incluidos',
+    combosName: 'Nombre',
+    combosDescription: 'Descripción',
+    combosFeatured: 'Destacado',
+    combosDelete: 'Eliminar combo',
+    combosCustomerTitle: 'Paquetes',
+    combosCustomerSub: 'Curados por la casa',
+    combosSavePct: 'ahorra',
+    combosBookCombo: 'Reservar este combo',
+    combosResetSeed: 'Restaurar combos iniciales',
   },
   en: {
     welcome: 'Welcome',
@@ -308,5 +456,79 @@ export const I18N: Record<Lang, I18nStrings> = {
     purchased: 'Purchased',
     used: 'Used',
     preview: 'Preview',
+    emptyBag: 'Your bag awaits',
+    emptyBagSub: "You haven't added anything yet. Step into the boutique.",
+    continueShopping: 'Explore the boutique',
+    removeFromBag: 'Remove from bag',
+    orderConfirmed: 'Order confirmed',
+    orderConfirmedSub: "We've sent the details to your email. Arrives in 2–4 days.",
+    orderNumber: 'Order',
+    emailReceipt: 'Receipt sent to your email',
+    backToBoutique: 'Back to the boutique',
+    resetOnboarding: 'Replay welcome',
+    cartProducts: 'Products',
+    cartServices: 'Services',
+    cartEmptyServices: 'No saved ritual yet',
+    cartEmptyProducts: 'No products yet',
+    cartViewFull: 'View full bag',
+    saveToBag: 'Save to bag',
+    updateInBag: 'Update in bag',
+    editBooking: 'Edit booking',
+    editingBooking: 'Editing saved booking',
+    chooseAvatar: 'Your avatar',
+    chooseAvatarSub: 'A house-curated selection.',
+    avatarInitials: 'Initials',
+    avatarUpload: 'Upload photo',
+    avatarUploadSoon: 'Coming soon',
+    authWelcome: 'Enter the Maison',
+    authWelcomeSub: 'Your next experience awaits.',
+    continueWithApple: 'Continue with Apple',
+    continueWithGoogle: 'Continue with Google',
+    continueWithWhatsApp: 'Continue with WhatsApp',
+    authOr: 'or',
+    authEmailLabel: 'Email',
+    authPasswordLabel: 'Password',
+    authSubmit: 'Sign in',
+    authNoAccount: "Don't have an account?",
+    authCreateAccount: 'Create one',
+    authGuest: 'Continue as guest',
+    authMockNote: 'Demo · no real backend',
+    authSigningIn: 'Signing in...',
+    variantStandard: 'Standard',
+    variantPremium: 'Premium',
+    variantCustom: 'Custom',
+    variantStandardDesc: 'The house signature ritual.',
+    variantCustomDesc: 'Combine the products you prefer.',
+    variantAddons: 'Includes',
+    variantPickProducts: 'Choose your products',
+    adminTitle: 'Administration',
+    adminSub: 'Manage products, services and variants.',
+    adminProducts: 'Products',
+    adminServices: 'Services',
+    adminVariants: 'Variants',
+    adminPremiumLabel: 'Premium caption (ES)',
+    adminPremiumLabelEnLabel: 'Premium caption (EN)',
+    adminCompatibles: 'Compatible products',
+    adminEnablePremium: 'Enable Premium',
+    adminEnableCustom: 'Enable Custom',
+    adminResetAll: 'Reset all',
+    adminOverrides: 'active overrides',
+    adminOpen: 'Admin mode',
+    combosTitle: 'Bundles',
+    combosSub: 'Predefined packages with discount over base price.',
+    combosNew: 'New bundle',
+    combosBasePrice: 'Base price',
+    combosFinalPrice: 'Final price',
+    combosDiscount: 'Discount',
+    combosServices: 'Included services',
+    combosName: 'Name',
+    combosDescription: 'Description',
+    combosFeatured: 'Featured',
+    combosDelete: 'Delete bundle',
+    combosCustomerTitle: 'Bundles',
+    combosCustomerSub: 'Curated by the house',
+    combosSavePct: 'save',
+    combosBookCombo: 'Book this bundle',
+    combosResetSeed: 'Reset to initial bundles',
   },
 };

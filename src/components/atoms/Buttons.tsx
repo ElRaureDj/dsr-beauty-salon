@@ -40,7 +40,7 @@ export function Btn({
     borderRadius: 0,
   };
   const themed: CSSProperties = primary
-    ? { background: T.gold, color: '#0A0908' }
+    ? { background: T.gold, color: T.bg }
     : { background: 'transparent', color: T.text, boxShadow: `inset 0 0 0 1px ${T.lineStrong}` };
   return (
     <button
@@ -112,7 +112,7 @@ export function Chip({ children, active, onClick, style }: ChipProps) {
         letterSpacing: 1.2,
         textTransform: 'uppercase',
         background: active ? T.gold : 'transparent',
-        color: active ? '#0A0908' : T.textMuted,
+        color: active ? T.bg : T.textMuted,
         boxShadow: active ? 'none' : `inset 0 0 0 1px ${T.line}`,
         transition: 'all .2s',
         whiteSpace: 'nowrap',

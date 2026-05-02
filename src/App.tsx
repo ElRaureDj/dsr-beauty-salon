@@ -3,9 +3,14 @@ import { useEffect, useState } from 'react';
 import { LangProvider } from './i18n/LangProvider';
 import { RouterProvider, useRouter } from './router/Router';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
-import { TabBar } from './components/atoms';
+import { CartProvider } from './cart/CartProvider';
+import { UserProvider } from './data/UserProvider';
+import { CatalogProvider } from './data/CatalogProvider';
+import { CartDrawer, TabBar, TopChrome } from './components/atoms';
 import type { TabId } from './types';
 
+import { AdminApp } from './admin/AdminApp';
+import { Auth } from './screens/Auth';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
 import { Services } from './screens/Services';
@@ -16,6 +21,7 @@ import { Rewards } from './screens/Rewards';
 import { Shop } from './screens/Shop';
 import { ProductDetail } from './screens/ProductDetail';
 import { Bag } from './screens/Bag';
+import { CheckoutSuccess } from './screens/CheckoutSuccess';
 import { Profile } from './screens/Profile';
 import { NailAtelier } from './screens/NailAtelier';
 import { NailLookDetail } from './screens/NailLookDetail';
@@ -26,14 +32,29 @@ import { GiftMine } from './screens/GiftMine';
 // Routes that should hide the bottom tab bar
 const HIDE_TAB_ROUTES: ReadonlyArray<string> = [
   'onboarding',
+  'auth',
+  'admin',
   'service',
   'artisan',
   'product',
   'bag',
+  'checkout-success',
   'nail-look',
   'gift-buy',
   'gift-mine',
   'profile',
+];
+
+// Pantallas donde no tiene sentido el chrome top (avatar/cart):
+// onboarding y auth (no logueado), checkout-success (terminal con CTA propio),
+// profile (ya estás ahí — evita doble avatar), bag (ya estás en el carrito).
+const HIDE_CHROME_ROUTES: ReadonlyArray<string> = [
+  'onboarding',
+  'auth',
+  'admin',
+  'checkout-success',
+  'profile',
+  'bag',
 ];
 
 function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
@@ -43,6 +64,8 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
   switch (name) {
     case 'onboarding':
       return <Onboarding onDone={onOnboardingDone} />;
+    case 'auth':
+      return <Auth />;
     case 'home':
       return <Home />;
     case 'services':
@@ -58,7 +81,10 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
             service: params.service,
             artisan: params.artisan,
             look: params.look,
+            variant: params.variant,
+            addonProductIds: params.addonProductIds,
           }}
+          editingBookingId={params.editingBooking}
         />
       );
     case 'rewards':
@@ -69,6 +95,8 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
       return <ProductDetail id={params.id ?? ''} />;
     case 'bag':
       return <Bag />;
+    case 'checkout-success':
+      return <CheckoutSuccess />;
     case 'profile':
       return <Profile />;
     case 'nail-atelier':
@@ -92,9 +120,36 @@ function FrameInner({ onOnboardingDone }: { onOnboardingDone: () => void }) {
   const T = useTheme();
   const { route, tab, go } = useRouter();
   const showTabs = !HIDE_TAB_ROUTES.includes(route.name);
+  const showChrome = !HIDE_CHROME_ROUTES.includes(route.name);
+  // El onboarding se considera terminado cuando además navegamos a 'home':
+  // sin esto el estado `seen` cambia pero el router sigue en 'onboarding'.
+  // Escribimos a localStorage directamente acá: si el usuario hizo "Ver bienvenida
+  // de nuevo" desde Profile, el estado React `seen` sigue en true y el useEffect
+  // de App no vuelve a correr — la escritura directa garantiza consistencia.
+  const handleOnboardingDone = () => {
+    try {
+      window.localStorage.setItem('dsr-onboarding-seen', '1');
+    } catch {
+      /* ignore */
+    }
+    onOnboardingDone();
+    go('home');
+  };
+  // El key fuerza remount en cada cambio de ruta para disparar la animación
+  // de entrada. La TabBar queda fuera del wrapper para no reanimar al navegar
+  // entre tabs (el TabBar es persistente).
+  const transitionKey = `${route.name}:${JSON.stringify(route.params)}`;
   return (
     <>
-      <ScreenSwitch onOnboardingDone={onOnboardingDone} />
+      <div
+        key={transitionKey}
+        className="dsr-route-in"
+        style={{ position: 'absolute', inset: 0 }}
+      >
+        <ScreenSwitch onOnboardingDone={handleOnboardingDone} />
+      </div>
+      {showChrome && <TopChrome />}
+      <CartDrawer />
       {showTabs && (
         <TabBar
           tab={tab}
@@ -119,17 +174,19 @@ function FrameInner({ onOnboardingDone }: { onOnboardingDone: () => void }) {
 export default function App() {
   const [seen, setSeen] = useState<boolean>(() => {
     try {
-      return window.sessionStorage.getItem('dsr-onboarding-seen') === '1';
+      return window.localStorage.getItem('dsr-onboarding-seen') === '1';
     } catch {
       return false;
     }
   });
 
-  // Persist once the user finishes onboarding
+  // Persiste cuando el usuario termina el onboarding.
+  // localStorage (no session) para que la decisión sobreviva al cierre de pestaña,
+  // como en una app real. El reset se puede hacer desde Profile.
   useEffect(() => {
     if (!seen) return;
     try {
-      window.sessionStorage.setItem('dsr-onboarding-seen', '1');
+      window.localStorage.setItem('dsr-onboarding-seen', '1');
     } catch {
       /* ignore */
     }
@@ -138,13 +195,33 @@ export default function App() {
   return (
     <ThemeProvider>
       <LangProvider initialLang="es">
-        <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
-          <DesktopFrame>
-            <FrameInner onOnboardingDone={() => setSeen(true)} />
-          </DesktopFrame>
-        </RouterProvider>
+        <UserProvider>
+          <CatalogProvider>
+            <CartProvider>
+              <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
+                <RootLayout onOnboardingDone={() => setSeen(true)} />
+              </RouterProvider>
+            </CartProvider>
+          </CatalogProvider>
+        </UserProvider>
       </LangProvider>
     </ThemeProvider>
+  );
+}
+
+/**
+ * Decide entre layout customer (iPhone frame) y layout admin (desktop full-viewport)
+ * según la ruta. Vive dentro de RouterProvider para poder leer la ruta.
+ */
+function RootLayout({ onOnboardingDone }: { onOnboardingDone: () => void }) {
+  const { route } = useRouter();
+  if (route.name === 'admin') {
+    return <AdminApp />;
+  }
+  return (
+    <DesktopFrame>
+      <FrameInner onOnboardingDone={onOnboardingDone} />
+    </DesktopFrame>
   );
 }
 
@@ -153,6 +230,7 @@ export default function App() {
  * On narrow viewports (real mobile), fill the screen.
  */
 function DesktopFrame({ children }: { children: React.ReactNode }) {
+  const T = useTheme();
   // The breakpoint matches the global.css media query.
   return (
     <div
@@ -181,7 +259,7 @@ function DesktopFrame({ children }: { children: React.ReactNode }) {
           height: 844,
           maxHeight: '100vh',
           maxWidth: '100vw',
-          background: '#0A0908',
+          background: T.bg,
           overflow: 'hidden',
           position: 'relative',
           borderRadius: 44,

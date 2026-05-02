@@ -16,8 +16,9 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { findProduct } from '../data/helpers';
+import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
+import { useCart } from '../cart/CartProvider';
 
 interface Slide {
   src?: string;
@@ -29,7 +30,8 @@ export function ProductDetail({ id }: { id: string }) {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const p = findProduct(id);
+  const cart = useCart();
+  const p = useCatalog().getProduct(id);
   const [tab, setTab] = useState(0);
   const [bag, setBag] = useState(false);
   if (!p) return null;
@@ -313,6 +315,8 @@ export function ProductDetail({ id }: { id: string }) {
           <Btn
             fullWidth={false}
             onClick={() => {
+              if (bag) return;
+              cart.add(p.id, 1);
               setBag(true);
               setTimeout(() => go('bag'), 380);
             }}
@@ -320,7 +324,7 @@ export function ProductDetail({ id }: { id: string }) {
               flex: 2,
               transition: 'all .3s',
               background: bag ? T.bg : T.gold,
-              color: bag ? T.gold : '#0A0908',
+              color: bag ? T.gold : T.bg,
               boxShadow: bag ? `inset 0 0 0 1px ${T.gold}` : 'none',
             }}
           >

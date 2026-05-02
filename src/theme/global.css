@@ -55,6 +55,19 @@ textarea {
   }
 }
 
+/* Route-level transition — un pelín más pronunciada que dsr-fade-up
+   para diferenciarse visualmente de las animaciones de paso interno. */
+@keyframes dsr-route-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes dsr-fade {
   from {
     opacity: 0;
@@ -92,6 +105,10 @@ textarea {
 
 .dsr-fadein {
   animation: dsr-fade-up 0.42s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.dsr-route-in {
+  animation: dsr-route-in 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 
 .dsr-press {

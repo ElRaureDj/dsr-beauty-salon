@@ -1,42 +1,91 @@
 // DSR — Profile (avatar · upcoming/past appointments · settings list)
+import { useEffect, useState } from 'react';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import {
+  AvatarPicker,
   Body,
   Eyebrow,
   H2,
+  HeaderBar,
   Ico,
   Icons,
   Img,
   Screen,
   Tiny,
 } from '../components/atoms';
-import { findArtisan, findService, tierFor } from '../data/helpers';
+import { tierFor } from '../data/helpers';
+import { useCatalog } from '../data/CatalogProvider';
+import { useRouter } from '../router/Router';
 import { USER } from '../data/user';
+import { useUser } from '../data/UserProvider';
 
 export function Profile() {
   const T = useTheme();
   const { t, lang, setLang } = useI18n();
+  const { go } = useRouter();
+  const { getArtisan, getService } = useCatalog();
+  const { avatar, signOut } = useUser();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatar]);
+  const showAvatarImg = !!avatar && !avatarFailed;
   const tier = tierFor(USER.points);
   const upcoming = USER.appointments.filter((a) => a.status === 'confirmed');
   const past = USER.appointments.filter((a) => a.status === 'past');
 
+  const handleResetOnboarding = () => {
+    try {
+      window.localStorage.removeItem('dsr-onboarding-seen');
+    } catch {
+      /* ignore */
+    }
+    go('onboarding');
+  };
+
+  const themeLabel = T.name === 'noir' ? 'Noir Couture' : 'Marbre Doré';
   const settings: { es: string; en: string; onClick?: () => void }[] = [
     { es: 'Información personal', en: 'Personal info' },
     { es: 'Favoritos', en: 'Favorites' },
     { es: 'Métodos de pago', en: 'Payment methods' },
     { es: 'Notificaciones', en: 'Notifications' },
     {
+      es: `Tema · ${themeLabel}`,
+      en: `Theme · ${themeLabel}`,
+      onClick: T.toggleTheme,
+    },
+    {
       es: 'Idioma · Español',
       en: 'Language · English',
       onClick: () => setLang(lang === 'es' ? 'en' : 'es'),
     },
-    { es: 'Cerrar sesión', en: 'Sign out' },
+    {
+      es: 'Ver bienvenida de nuevo',
+      en: 'Replay welcome',
+      onClick: handleResetOnboarding,
+    },
+    {
+      es: 'Modo administrador',
+      en: 'Admin mode',
+      onClick: () => go('admin'),
+    },
+    {
+      es: 'Cerrar sesión',
+      en: 'Sign out',
+      onClick: () => {
+        signOut();
+        go('auth');
+      },
+    },
   ];
 
   return (
-    <Screen padTop={0} padBottom={120}>
-      <div style={{ padding: '74px 22px 0' }}>
+    <>
+      <Screen padTop={0} padBottom={120}>
+      <HeaderBar onBack={() => go('home')} title={t('profile')} />
+      <div style={{ padding: '108px 22px 0' }}>
         <Eyebrow>{t('profile')}</Eyebrow>
         <div
           style={{
@@ -46,24 +95,63 @@ export function Profile() {
             alignItems: 'center',
           }}
         >
-          <div
+          <button
+            onClick={() => setPickerOpen(true)}
+            aria-label={t('chooseAvatar')}
+            className="dsr-press"
             style={{
               width: 64,
               height: 64,
               borderRadius: 999,
-              background: `linear-gradient(135deg, ${T.gold}, ${T.goldDeep})`,
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              background: showAvatarImg
+                ? T.surface
+                : `linear-gradient(135deg, ${T.gold}, ${T.goldDeep})`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontFamily: T.serif,
               fontSize: 26,
               fontStyle: 'italic',
-              color: '#0A0908',
+              color: T.bg,
               fontWeight: 400,
+              overflow: 'hidden',
+              position: 'relative',
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
             }}
           >
-            {USER.name[0]}
-          </div>
+            {showAvatarImg ? (
+              <Img
+                src={avatar!}
+                style={{ width: '100%', height: '100%' }}
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : (
+              USER.name[0]
+            )}
+            {/* Edit indicator overlay */}
+            <span
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                background: T.gold,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: `0 0 0 2px ${T.bg}`,
+              }}
+            >
+              <Ico size={10} color={T.bg} stroke={2}>
+                {Icons.edit}
+              </Ico>
+            </span>
+          </button>
           <div>
             <H2 style={{ fontSize: 26 }}>{USER.fullName}</H2>
             <Tiny
@@ -86,7 +174,7 @@ export function Profile() {
         <Eyebrow>{t('upcoming')}</Eyebrow>
         <div style={{ marginTop: 14 }}>
           {upcoming.map((apt) => {
-            const ar = findArtisan(apt.artisan);
+            const ar = getArtisan(apt.artisan);
             if (!ar) return null;
             return (
               <div
@@ -127,7 +215,7 @@ export function Profile() {
                     <Body style={{ fontSize: 14, fontWeight: 500 }}>
                       {apt.services
                         .map((sid) => {
-                          const s = findService(sid);
+                          const s = getService(sid);
                           if (!s) return sid;
                           return lang === 'es' ? s.es : s.en;
                         })
@@ -156,7 +244,7 @@ export function Profile() {
           <Eyebrow>{t('past')}</Eyebrow>
           <div style={{ marginTop: 14 }}>
             {past.map((apt, i) => {
-              const ar = findArtisan(apt.artisan);
+              const ar = getArtisan(apt.artisan);
               if (!ar) return null;
               return (
                 <div
@@ -178,7 +266,7 @@ export function Profile() {
                     <Body style={{ fontSize: 13 }}>
                       {apt.services
                         .map((sid) => {
-                          const s = findService(sid);
+                          const s = getService(sid);
                           if (!s) return sid;
                           return lang === 'es' ? s.es : s.en;
                         })
@@ -239,5 +327,7 @@ export function Profile() {
         </div>
       </div>
     </Screen>
+      <AvatarPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
+    </>
   );
 }

@@ -16,15 +16,9 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { ARTISANS } from '../data/catalog';
+import { useCatalog } from '../data/CatalogProvider';
 import { STORIES, USER } from '../data/user';
-import {
-  findArtisan,
-  findService,
-  greeting,
-  nextTier,
-  tierFor,
-} from '../data/helpers';
+import { greeting, nextTier, tierFor } from '../data/helpers';
 import { I, IMG_HERO_SPRING, IMG_LOOK_OF_MONTH } from '../data/images';
 import { useRouter } from '../router/Router';
 
@@ -32,12 +26,15 @@ export function Home() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getArtisan, getService, getAllArtisans, getCombos, getAllServices } = useCatalog();
+  const featuredCombos = getCombos().filter((c) => c.popular);
+  const allServicesForCombos = getAllServices();
   const tier = tierFor(USER.points);
   const next = nextTier(USER.points);
 
   const heroImg = IMG_HERO_SPRING();
   const upcoming = USER.appointments.find((a) => a.status === 'confirmed');
-  const upcomingArt = upcoming ? findArtisan(upcoming.artisan) : null;
+  const upcomingArt = upcoming ? getArtisan(upcoming.artisan) : null;
 
   return (
     <Screen padTop={0} padBottom={110}>
@@ -92,38 +89,6 @@ export function Home() {
               {Icons.search}
             </Ico>
           </button>
-          <button
-            onClick={() => go('profile')}
-            className="dsr-press"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 999,
-              border: 'none',
-              background: T.surface,
-              cursor: 'pointer',
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: `inset 0 0 0 1px ${T.line}`,
-            }}
-          >
-            <Ico size={16} color={T.text}>
-              {Icons.bell}
-            </Ico>
-            <div
-              style={{
-                position: 'absolute',
-                top: 9,
-                right: 10,
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                background: T.gold,
-              }}
-            />
-          </button>
         </div>
       </div>
 
@@ -134,12 +99,12 @@ export function Home() {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.05) 30%, rgba(10,9,8,0.05) 60%, ${T.bg} 100%)`,
+            background: `linear-gradient(180deg, rgba(${T.bgRgb},0.55) 0%, rgba(${T.bgRgb},0.05) 30%, rgba(${T.bgRgb},0.05) 60%, ${T.bg} 100%)`,
           }}
         />
         <div style={{ position: 'absolute', bottom: 30, left: 22, right: 22 }}>
           <Eyebrow style={{ color: T.goldHi, marginBottom: 12 }}>Édition Printemps · 2026</Eyebrow>
-          <H1 style={{ fontSize: 42, color: '#fff', lineHeight: 1, fontWeight: 300 }}>
+          <H1 style={{ fontSize: 42, color: T.text, lineHeight: 1, fontWeight: 300 }}>
             {lang === 'es' ? 'La nueva luz' : 'The new light'}
           </H1>
           <H1
@@ -206,7 +171,7 @@ export function Home() {
                 <H3 style={{ fontSize: 19 }}>
                   {upcoming.services
                     .map((s) => {
-                      const svc = findService(s);
+                      const svc = getService(s);
                       if (!svc) return s;
                       return lang === 'es' ? svc.es : svc.en;
                     })
@@ -325,6 +290,162 @@ export function Home() {
         </div>
       </div>
 
+      {/* COMBOS / PAQUETES */}
+      {featuredCombos.length > 0 && (
+        <div style={{ marginTop: 44 }}>
+          <div
+            style={{
+              padding: '0 22px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginBottom: 14,
+            }}
+          >
+            <div>
+              <Eyebrow>{t('combosCustomerTitle')}</Eyebrow>
+              <Tiny
+                muted
+                style={{
+                  marginTop: 4,
+                  fontSize: 11,
+                  letterSpacing: 0.3,
+                  textTransform: 'none',
+                  display: 'block',
+                  fontStyle: 'italic',
+                  fontFamily: T.serif,
+                }}
+              >
+                {t('combosCustomerSub')}
+              </Tiny>
+            </div>
+          </div>
+          <div
+            className="dsr-scroll"
+            style={{
+              display: 'flex',
+              gap: 12,
+              overflowX: 'auto',
+              padding: '0 22px',
+            }}
+          >
+            {featuredCombos.map((c) => {
+              const services = c.serviceIds.map((sid) =>
+                allServicesForCombos.find((s) => s.id === sid),
+              );
+              const base = services.reduce((a, s) => a + (s?.price ?? 0), 0);
+              const final = Math.round(base * (1 - c.discountPct / 100));
+              const totalMin = services.reduce((a, s) => a + (s?.duration ?? 0), 0);
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => {
+                    if (c.serviceIds.length > 0) {
+                      go('book', { service: c.serviceIds[0] });
+                    }
+                  }}
+                  className="dsr-press"
+                  style={{
+                    flexShrink: 0,
+                    width: 280,
+                    background: T.surface,
+                    boxShadow: `inset 0 0 0 1px ${T.gold}33`,
+                    padding: 18,
+                    cursor: 'pointer',
+                    position: 'relative',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                    }}
+                  >
+                    <Eyebrow style={{ color: T.gold, fontSize: 9 }}>
+                      −{c.discountPct}% · {t('combosSavePct')}
+                    </Eyebrow>
+                    <Ico size={11} color={T.gold}>
+                      {Icons.diamond}
+                    </Ico>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: T.serif,
+                      fontStyle: 'italic',
+                      fontSize: 22,
+                      marginTop: 8,
+                      lineHeight: 1.15,
+                      color: T.text,
+                      fontWeight: 300,
+                    }}
+                  >
+                    {lang === 'es' ? c.name_es : c.name_en}
+                  </div>
+                  <Tiny
+                    muted
+                    style={{
+                      marginTop: 6,
+                      fontSize: 11,
+                      letterSpacing: 0.3,
+                      textTransform: 'none',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {services
+                      .filter(Boolean)
+                      .map((s) => (lang === 'es' ? s!.es : s!.en))
+                      .join(' + ')}
+                  </Tiny>
+                  <div
+                    style={{
+                      marginTop: 14,
+                      paddingTop: 12,
+                      borderTop: `1px solid ${T.line}`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'baseline',
+                    }}
+                  >
+                    <Tiny
+                      muted
+                      style={{ fontSize: 10, letterSpacing: 0.3, textTransform: 'none' }}
+                    >
+                      {totalMin} min
+                    </Tiny>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                      <Tiny
+                        style={{
+                          color: T.textFaint,
+                          fontSize: 11,
+                          textDecoration: 'line-through',
+                          textTransform: 'none',
+                        }}
+                      >
+                        €{base}
+                      </Tiny>
+                      <span
+                        style={{
+                          fontFamily: T.serif,
+                          fontStyle: 'italic',
+                          fontSize: 22,
+                          color: T.gold,
+                          fontWeight: 300,
+                          lineHeight: 1,
+                        }}
+                      >
+                        €{final}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* STORIES */}
       <div style={{ marginTop: 36 }}>
         <div
@@ -344,7 +465,7 @@ export function Home() {
           style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '0 22px' }}
         >
           {STORIES.map((s) => {
-            const ar = findArtisan(s.artisan);
+            const ar = getArtisan(s.artisan);
             if (!ar) return null;
             return (
               <div
@@ -502,7 +623,7 @@ export function Home() {
           <GhostBtn>{t('seeAll')}</GhostBtn>
         </div>
         <div className="dsr-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto' }}>
-          {ARTISANS.slice(0, 4).map((ar) => (
+          {getAllArtisans().slice(0, 4).map((ar) => (
             <div
               key={ar.id}
               onClick={() => go('artisan', { id: ar.id })}

@@ -161,9 +161,116 @@ export interface ScheduleDay {
   slots: ScheduleSlot[];
 }
 
+export interface CartItem {
+  productId: string;
+  qty: number;
+}
+
+// Admin: stock por producto.
+export interface ProductStock {
+  productId: string;
+  stock: number;
+  lowStockAt: number;
+}
+
+// Admin: cupones de descuento.
+export interface Promo {
+  id: string;
+  code: string;
+  type: 'pct' | 'fixed';
+  value: number;
+  description_es?: string;
+  description_en?: string;
+  validUntil?: string;
+  maxUses?: number;
+  usedCount: number;
+  active: boolean;
+}
+
+// Admin: agenda semanal por artista.
+export type WeekDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export interface ArtisanSchedule {
+  artisanId: string;
+  workingDays: Record<WeekDay, boolean>;
+  startTime: string; // HH:MM
+  endTime: string;
+}
+
+// Admin: reglas de puntos por tier.
+export interface TierRule {
+  tierId: 'pearl' | 'gold' | 'noir';
+  thresholdPoints: number;
+  multipliers: { hair: number; nails: number; facial: number };
+}
+
+// Admin: reseña de cliente post-cita.
+export interface Review {
+  id: string;
+  customerName: string;
+  artisanId: string;
+  serviceId: string;
+  rating: number; // 1-5
+  comment: string;
+  date: string; // YYYY-MM-DD
+  response?: string;
+  responseDate?: string;
+}
+
+// Admin: configuración del salón.
+export interface SalonSettings {
+  name: string;
+  tagline_es: string;
+  tagline_en: string;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+  instagram?: string;
+  whatsapp?: string;
+  hoursOpen: string; // HH:MM
+  hoursClose: string;
+  currency: 'EUR' | 'USD' | 'MXN' | 'COP';
+  timezone: string;
+}
+
+// Una cita guardada en la bolsa pero aún no confirmada.
+// Cuando el usuario "paga" desde el drawer, las pendingBookings
+// se confirmarían (en una versión real con backend, se mueven a USER.appointments).
+export interface PendingBooking {
+  id: string;
+  serviceIds: string[];
+  artisanId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  total: number;
+  duration: number;
+  notes?: string;
+  /** Variante elegida (si el servicio tenía variantes definidas). */
+  variant?: 'standard' | 'premium' | 'custom';
+  /** Productos add-on incluidos en la cita. */
+  addonProductIds?: string[];
+}
+
+// Combos: paquetes predefinidos de servicios con descuento.
+// Creados/editados desde el admin, visibles en home del customer.
+export interface Combo {
+  id: string;
+  name_es: string;
+  name_en: string;
+  /** Servicios incluidos (todos en una misma cita típicamente). */
+  serviceIds: string[];
+  /** Descuento en porcentaje sobre la suma de precios base. 15 = 15% off. */
+  discountPct: number;
+  description_es?: string;
+  description_en?: string;
+  popular?: boolean;
+}
+
 // Routing
 export type RouteName =
   | 'onboarding'
+  | 'auth'
+  | 'admin'
   | 'home'
   | 'services'
   | 'service'
@@ -173,6 +280,7 @@ export type RouteName =
   | 'shop'
   | 'product'
   | 'bag'
+  | 'checkout-success'
   | 'profile'
   | 'nail-atelier'
   | 'nail-look'
@@ -188,6 +296,9 @@ export interface RouteParams {
   artisan?: string;
   look?: string;
   design?: string;
+  editingBooking?: string;
+  variant?: 'standard' | 'premium' | 'custom';
+  addonProductIds?: string[];
 }
 
 export interface Route {

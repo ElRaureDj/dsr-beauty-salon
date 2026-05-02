@@ -14,17 +14,19 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { findArtisan, findNailLook, findService } from '../data/helpers';
+import { findNailLook } from '../data/helpers';
+import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
 export function NailLookDetail({ id }: { id: string }) {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getArtisan, getService } = useCatalog();
   const n = findNailLook(id);
   if (!n) return null;
-  const ar = findArtisan(n.artisan);
-  const svc = findService(n.service);
+  const ar = getArtisan(n.artisan);
+  const svc = getService(n.service);
 
   return (
     <Screen padTop={0} padBottom={130}>
@@ -42,7 +44,7 @@ export function NailLookDetail({ id }: { id: string }) {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, rgba(10,9,8,0.3) 0%, transparent 30%, transparent 70%, ${T.bg} 100%)`,
+            background: `linear-gradient(180deg, rgba(${T.bgRgb},0.3) 0%, transparent 30%, transparent 70%, ${T.bg} 100%)`,
           }}
         />
       </div>

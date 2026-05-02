@@ -2,9 +2,14 @@
 import type { ReactNode } from 'react';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useI18n } from '../../i18n/LangProvider';
+import { useCart } from '../../cart/CartProvider';
 import { Eyebrow } from './Typography';
 import { Ico, Icons } from './Icon';
 import type { TabId } from '../../types';
+
+// Altura total del TabBar (paddingTop 10 + icon 20 + gap 5 + label ~12 + paddingBottom 28 + borde).
+// Las pantallas con CTA sticky deben dejar este margen para no quedar tapadas.
+export const TAB_BAR_HEIGHT = 76;
 
 interface HeaderBarProps {
   title?: ReactNode;
@@ -66,12 +71,13 @@ interface TabBarProps {
 export function TabBar({ tab, setTab }: TabBarProps) {
   const T = useTheme();
   const { t } = useI18n();
-  const tabs: { id: TabId; label: string; icon: ReactNode }[] = [
+  const cart = useCart();
+  const tabs: { id: TabId; label: string; icon: ReactNode; badge?: number }[] = [
     { id: 'home', label: t('home'), icon: Icons.home },
     { id: 'services', label: t('services'), icon: Icons.scissors },
     { id: 'book', label: t('book'), icon: Icons.calendar },
     { id: 'rewards', label: t('rewards'), icon: Icons.diamond },
-    { id: 'shop', label: t('boutique'), icon: Icons.bag },
+    { id: 'shop', label: t('boutique'), icon: Icons.bag, badge: cart.count },
   ];
   return (
     <div
@@ -80,7 +86,7 @@ export function TabBar({ tab, setTab }: TabBarProps) {
         bottom: 0,
         left: 0,
         right: 0,
-        background: 'rgba(10,9,8,0.92)',
+        background: `rgba(${T.bgRgb}, 0.92)`,
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderTop: `1px solid ${T.line}`,
@@ -93,6 +99,8 @@ export function TabBar({ tab, setTab }: TabBarProps) {
     >
       {tabs.map((tb) => {
         const active = tab === tb.id;
+        const showBadge = (tb.badge ?? 0) > 0;
+        const badgeLabel = (tb.badge ?? 0) > 9 ? '9+' : String(tb.badge ?? 0);
         return (
           <button
             key={tb.id}
@@ -110,9 +118,39 @@ export function TabBar({ tab, setTab }: TabBarProps) {
               color: active ? T.gold : T.textFaint,
             }}
           >
-            <Ico size={20} color={active ? T.gold : T.textFaint} stroke={active ? 1.6 : 1.4}>
-              {tb.icon}
-            </Ico>
+            <div style={{ position: 'relative', display: 'flex' }}>
+              <Ico size={20} color={active ? T.gold : T.textFaint} stroke={active ? 1.6 : 1.4}>
+                {tb.icon}
+              </Ico>
+              {showBadge && (
+                <span
+                  className="dsr-fadein"
+                  aria-label={`${tb.badge}`}
+                  style={{
+                    position: 'absolute',
+                    top: -5,
+                    left: '100%',
+                    marginLeft: -10,
+                    minWidth: 14,
+                    height: 14,
+                    padding: '0 4px',
+                    borderRadius: 999,
+                    background: T.gold,
+                    color: T.bg,
+                    fontFamily: T.sans,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 0 0 1.5px ${T.bg}`,
+                  }}
+                >
+                  {badgeLabel}
+                </span>
+              )}
+            </div>
             <span
               style={{
                 fontFamily: T.sans,

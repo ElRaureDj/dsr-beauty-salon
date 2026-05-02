@@ -7,9 +7,10 @@ interface ImgProps {
   alt?: string;
   style?: CSSProperties;
   fallback?: string;
+  onError?: () => void;
 }
 
-export function Img({ src, alt, style, fallback = '#1B1815' }: ImgProps) {
+export function Img({ src, alt, style, fallback = '#1B1815', onError }: ImgProps) {
   const [loaded, setLoaded] = useState(false);
   return (
     <div
@@ -24,6 +25,7 @@ export function Img({ src, alt, style, fallback = '#1B1815' }: ImgProps) {
         src={src}
         alt={alt || ''}
         onLoad={() => setLoaded(true)}
+        onError={onError}
         style={{
           width: '100%',
           height: '100%',

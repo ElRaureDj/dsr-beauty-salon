@@ -17,42 +17,106 @@ import {
   Img,
   Numeral,
   Screen,
+  TAB_BAR_HEIGHT,
   Tiny,
 } from '../components/atoms';
-import { ARTISANS, CATEGORIES, SERVICES } from '../data/catalog';
-import { buildSchedule, findArtisan, findService } from '../data/helpers';
+import { CATEGORIES } from '../data/catalog';
+import { buildSchedule } from '../data/helpers';
+import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
+import { useCart } from '../cart/CartProvider';
 import type { CategoryId } from '../types';
 
 interface BookingProps {
-  initial?: { service?: string; artisan?: string; look?: string };
+  initial?: {
+    service?: string;
+    artisan?: string;
+    look?: string;
+    variant?: 'standard' | 'premium' | 'custom';
+    addonProductIds?: string[];
+  };
+  editingBookingId?: string;
 }
 
-export function Booking({ initial = {} }: BookingProps) {
+export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const cart = useCart();
+  const { getProduct, getService, getArtisan, getAllServices, getAllArtisans } =
+    useCatalog();
 
-  const [step, setStep] = useState<number>(initial.service ? 1 : 0);
-  const [services, setServices] = useState<string[]>(initial.service ? [initial.service] : []);
-  const [artisan, setArtisan] = useState<string | null>(initial.artisan || null);
+  // Si venimos del drawer con un booking guardado, pre-cargamos el state.
+  // Buscamos UNA sola vez (al mount) para no perder edits si la lista cambia.
+  const [editingSnapshot] = useState(() =>
+    editingBookingId
+      ? cart.pendingBookings.find((b) => b.id === editingBookingId) ?? null
+      : null,
+  );
+  const isEditing = editingSnapshot !== null;
+
+  const [step, setStep] = useState<number>(() => {
+    if (editingSnapshot) return 3;
+    return initial.service ? 1 : 0;
+  });
+  const [services, setServices] = useState<string[]>(() => {
+    if (editingSnapshot) return [...editingSnapshot.serviceIds];
+    return initial.service ? [initial.service] : [];
+  });
+  const [artisan, setArtisan] = useState<string | null>(() => {
+    if (editingSnapshot) return editingSnapshot.artisanId;
+    return initial.artisan || null;
+  });
   const [cat, setCat] = useState<CategoryId>('hair');
-  const [day, setDay] = useState(0);
-  const [time, setTime] = useState<string | null>(null);
-  const [notes, setNotes] = useState('');
+  const [day, setDay] = useState<number>(() => {
+    if (!editingSnapshot) return 0;
+    // Match the saved date contra el schedule actual del artista.
+    // Si el día ya pasó (no está en la ventana de 7 días), default a 0.
+    const sch = buildSchedule(editingSnapshot.artisanId);
+    const idx = sch.findIndex(
+      (d) => d.date.toISOString().slice(0, 10) === editingSnapshot.date,
+    );
+    return idx >= 0 ? idx : 0;
+  });
+  const [time, setTime] = useState<string | null>(
+    editingSnapshot ? editingSnapshot.time : null,
+  );
+  const [notes, setNotes] = useState<string>(
+    editingSnapshot?.notes ?? '',
+  );
   const [waitlist, setWaitlist] = useState(false);
   const [withFriend, setWithFriend] = useState(false);
+
+  // Variant + add-ons del servicio (vienen de ServiceDetail). Si estamos
+  // editando un booking guardado, se preservan.
+  const [variant] = useState<'standard' | 'premium' | 'custom' | undefined>(() => {
+    if (editingSnapshot?.variant) return editingSnapshot.variant;
+    return initial.variant;
+  });
+  const [addonProductIds] = useState<string[]>(() => {
+    if (editingSnapshot?.addonProductIds) return [...editingSnapshot.addonProductIds];
+    return initial.addonProductIds ?? [];
+  });
 
   const toggleService = (id: string) =>
     setServices((arr) => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]));
 
-  const chosenSvcs = services.map(findService).filter((s): s is NonNullable<typeof s> => !!s);
+  const chosenSvcs = services
+    .map(getService)
+    .filter((s): s is NonNullable<ReturnType<typeof getService>> => !!s);
   const allCats = [...new Set(chosenSvcs.map((s) => s.cat))];
-  const eligibleArtisans = ARTISANS.filter((a) => allCats.every((c) => a.cats.includes(c)));
-  const totalPrice = chosenSvcs.reduce((a, s) => a + s.price, 0);
+  const eligibleArtisans = getAllArtisans().filter((a) =>
+    allCats.every((c) => a.cats.includes(c)),
+  );
+  const baseServicePrice = chosenSvcs.reduce((a, s) => a + s.price, 0);
+  const addonsTotal = addonProductIds.reduce((a, pid) => {
+    const p = getProduct(pid);
+    return a + (p?.price ?? 0);
+  }, 0);
+  const totalPrice = baseServicePrice + addonsTotal;
   const totalMin = chosenSvcs.reduce((a, s) => a + s.duration, 0);
 
-  const arObj = artisan && artisan !== 'any' ? findArtisan(artisan) : null;
+  const arObj = artisan && artisan !== 'any' ? getArtisan(artisan) : null;
   // For "any", just pick the first eligible artisan deterministically
   const effectiveArtisan = arObj ?? (artisan === 'any' ? eligibleArtisans[0] : null);
   const schedule = effectiveArtisan ? buildSchedule(effectiveArtisan.id) : [];
@@ -73,7 +137,11 @@ export function Booking({ initial = {} }: BookingProps) {
   })();
 
   return (
-    <Screen padTop={0} padBottom={step === 4 ? 40 : 130}>
+    <>
+      <Screen
+        padTop={0}
+        padBottom={step === 4 ? 40 : TAB_BAR_HEIGHT + 100}
+      >
       {step !== 4 && (
         <HeaderBar
           onBack={() => (step === 0 ? go('home') : setStep(step - 1))}
@@ -129,7 +197,7 @@ export function Booking({ initial = {} }: BookingProps) {
             </div>
 
             <div>
-              {SERVICES.filter((s) => s.cat === cat).map((s, i, arr) => {
+              {getAllServices().filter((s) => s.cat === cat).map((s, i, arr) => {
                 const sel = services.includes(s.id);
                 return (
                   <div
@@ -379,7 +447,7 @@ export function Booking({ initial = {} }: BookingProps) {
                       border: 'none',
                       cursor: 'pointer',
                       background: sel ? T.gold : 'transparent',
-                      color: sel ? '#0A0908' : T.text,
+                      color: sel ? T.bg : T.text,
                       boxShadow: sel ? 'none' : `inset 0 0 0 1px ${T.line}`,
                       display: 'flex',
                       flexDirection: 'column',
@@ -391,7 +459,7 @@ export function Booking({ initial = {} }: BookingProps) {
                       style={{
                         fontSize: 9,
                         letterSpacing: 1.4,
-                        color: sel ? '#0A0908' : T.textMuted,
+                        color: sel ? T.bg : T.textMuted,
                       }}
                     >
                       {i === 0
@@ -416,7 +484,7 @@ export function Booking({ initial = {} }: BookingProps) {
                         letterSpacing: 0.4,
                         textTransform: 'none',
                         color: sel
-                          ? '#0A0908'
+                          ? T.bg
                           : d.dayOff
                             ? T.textFaint
                             : T.gold,
@@ -473,7 +541,7 @@ export function Booking({ initial = {} }: BookingProps) {
                               ? T.surface
                               : 'transparent',
                           color: sel
-                            ? '#0A0908'
+                            ? T.bg
                             : slot.free
                               ? T.text
                               : T.textFaint,
@@ -560,6 +628,33 @@ export function Booking({ initial = {} }: BookingProps) {
             <H1 style={{ fontSize: 32, marginTop: 6 }}>
               {lang === 'es' ? 'Revisa tu cita' : 'Review your booking'}
             </H1>
+            {isEditing && (
+              <div
+                style={{
+                  marginTop: 12,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  background: `${T.gold}1A`,
+                  boxShadow: `inset 0 0 0 1px ${T.gold}55`,
+                }}
+              >
+                <Ico size={10} color={T.gold}>
+                  {Icons.edit}
+                </Ico>
+                <Tiny
+                  style={{
+                    color: T.gold,
+                    letterSpacing: 0.4,
+                    textTransform: 'none',
+                    fontSize: 10,
+                  }}
+                >
+                  {t('editingBooking')}
+                </Tiny>
+              </div>
+            )}
 
             <div
               style={{
@@ -848,27 +943,90 @@ export function Booking({ initial = {} }: BookingProps) {
         )}
       </div>
 
-      {/* Sticky next CTA */}
+      </Screen>
+      {/* Sticky next CTA — sibling del Screen, anclado al iPhone frame.
+          Vivir fuera del scroll container es la única forma de que se quede
+          fijo al viewport y no al final del contenido scrollable. */}
       {step !== 4 && (
         <div
           style={{
             position: 'absolute',
-            bottom: 0,
+            bottom: TAB_BAR_HEIGHT,
             left: 0,
             right: 0,
-            padding: '14px 22px 36px',
+            padding: '14px 22px 18px',
             background: `linear-gradient(180deg, transparent, ${T.bg} 30%)`,
-            zIndex: 30,
+            zIndex: 60,
+            pointerEvents: 'none',
           }}
         >
-          <Btn disabled={!canNext} onClick={() => setStep(step + 1)}>
-            {step === 3 ? t('confirm') : t('continue')}
-            <Ico size={14} color={T.bg}>
-              {Icons.arrow}
-            </Ico>
-          </Btn>
+          <div style={{ pointerEvents: 'auto' }}>
+            <Btn
+              disabled={!canNext}
+              onClick={() => {
+                // Steps 0-2: avanzar sin tocar nada.
+                if (step !== 3) {
+                  setStep(step + 1);
+                  return;
+                }
+                // Step 3 + edit mode: el primary actualiza el booking y vuelve al drawer.
+                // (Sin destruir nada — finalizar es cosa del Apple Pay del drawer.)
+                if (isEditing && editingSnapshot && effectiveArtisan && time !== null) {
+                  cart.updateBooking(editingSnapshot.id, {
+                    serviceIds: services,
+                    artisanId: effectiveArtisan.id,
+                    date: schedule[day].date.toISOString().slice(0, 10),
+                    time,
+                    total: totalPrice,
+                    duration: totalMin,
+                    notes: notes || undefined,
+                    variant,
+                    addonProductIds: addonProductIds.length > 0 ? addonProductIds : undefined,
+                  });
+                  cart.openDrawer();
+                  go('home');
+                  return;
+                }
+                // Step 3 + non-edit: confirmar visual (step 4).
+                setStep(step + 1);
+              }}
+            >
+              {step === 3
+                ? isEditing
+                  ? t('updateInBag')
+                  : t('confirm')
+                : t('continue')}
+              <Ico size={14} color={T.bg}>
+                {Icons.arrow}
+              </Ico>
+            </Btn>
+            {/* Ghost "Guardar en bolsa" sólo cuando NO estás editando.
+                En edit mode el primary ya hace update — el ghost sería redundante. */}
+            {step === 3 && !isEditing && effectiveArtisan && time !== null && (
+              <GhostBtn
+                onClick={() => {
+                  cart.addBooking({
+                    serviceIds: services,
+                    artisanId: effectiveArtisan.id,
+                    date: schedule[day].date.toISOString().slice(0, 10),
+                    time,
+                    total: totalPrice,
+                    duration: totalMin,
+                    notes: notes || undefined,
+                    variant,
+                    addonProductIds: addonProductIds.length > 0 ? addonProductIds : undefined,
+                  });
+                  cart.openDrawer();
+                  go('home');
+                }}
+                style={{ marginTop: 14, width: '100%', justifyContent: 'center' }}
+              >
+                {t('saveToBag')}
+              </GhostBtn>
+            )}
+          </div>
         </div>
       )}
-    </Screen>
+    </>
   );
 }

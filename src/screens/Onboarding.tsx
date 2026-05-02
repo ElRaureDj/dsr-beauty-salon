@@ -80,7 +80,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, rgba(10,9,8,0.4) 0%, rgba(10,9,8,0.55) 40%, ${T.bg} 78%)`,
+            background: `linear-gradient(180deg, rgba(${T.bgRgb},0.4) 0%, rgba(${T.bgRgb},0.55) 40%, ${T.bg} 78%)`,
           }}
         />
       </div>
@@ -114,7 +114,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                 letterSpacing: 1.4,
                 textTransform: 'uppercase',
                 background: lang === l ? T.gold : 'transparent',
-                color: lang === l ? '#0A0908' : T.text,
+                color: lang === l ? T.bg : T.text,
               }}
             >
               {l}

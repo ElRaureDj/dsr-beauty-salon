@@ -14,7 +14,7 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { findArtisan } from '../data/helpers';
+import { useCatalog } from '../data/CatalogProvider';
 import { I } from '../data/images';
 import { NAIL_LOOKS } from '../data/nails';
 import { useRouter } from '../router/Router';
@@ -23,6 +23,7 @@ export function NailAtelier() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getArtisan } = useCatalog();
   const seasons =
     lang === 'es'
       ? ['Todas', 'Primavera', 'Verano', 'Otoño', 'Invierno']
@@ -45,7 +46,7 @@ export function NailAtelier() {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, rgba(10,9,8,0.45) 0%, rgba(10,9,8,0.1) 35%, ${T.bg} 100%)`,
+            background: `linear-gradient(180deg, rgba(${T.bgRgb},0.45) 0%, rgba(${T.bgRgb},0.1) 35%, ${T.bg} 100%)`,
           }}
         />
         <div style={{ position: 'absolute', top: 80, left: 22, right: 22 }}>
@@ -56,7 +57,7 @@ export function NailAtelier() {
           <H1
             style={{
               fontSize: 42,
-              color: '#fff',
+              color: T.text,
               marginTop: 4,
               fontWeight: 300,
               lineHeight: 0.95,
@@ -116,7 +117,7 @@ export function NailAtelier() {
       {/* Editorial mosaic */}
       <div style={{ padding: '4px 22px 0' }}>
         {visible.map((n, i) => {
-          const ar = findArtisan(n.artisan);
+          const ar = getArtisan(n.artisan);
           if (!ar) return null;
           const isFeature = i % 3 === 0;
           return (

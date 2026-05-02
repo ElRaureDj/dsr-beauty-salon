@@ -3,3 +3,6 @@ export * from './Icon';
 export * from './Buttons';
 export * from './Layout';
 export * from './Chrome';
+export * from './TopChrome';
+export * from './CartDrawer';
+export * from './AvatarPicker';
