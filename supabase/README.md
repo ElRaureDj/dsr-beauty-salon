@@ -53,10 +53,32 @@ supabase db push
   del admin viven aún en `localStorage` hasta que migremos el admin
   panel a la DB.
 
+## Variables de entorno
+
+El frontend lee dos variables (prefijo `VITE_` para que Vite las exponga):
+
+```
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_...
+```
+
+Ambas son públicas — viajan al cliente. Nunca pongas el `service_role`
+key en el frontend.
+
+### Local
+
+Copia `.env.local.example` a `.env.local` en la raíz del repo y rellena.
+`.env.local` está en `.gitignore`.
+
+### Producción (Vercel)
+
+En Project Settings → Environment Variables, agrega las dos con scope
+"Production, Preview, Development". Re-deploy para que tomen efecto.
+
 ## Roadmap (fases)
 
-- [x] Fase 1 — Schema + seed (este commit)
-- [ ] Fase 2 — Cliente Supabase + env vars + TanStack Query
+- [x] Fase 1 — Schema + seed
+- [x] Fase 2 — Cliente Supabase + env vars + TanStack Query
 - [ ] Fase 3 — Auth real (email magic link, después Apple/Google)
 - [ ] Fase 4 — Migrar `CatalogProvider` a fetch desde DB
 - [ ] Fase 5 — Migrar cart/bookings/gift cards al backend
