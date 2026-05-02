@@ -15,10 +15,15 @@ import {
 } from 'react';
 import { PRODUCTS, SERVICES, ARTISANS } from '../data/catalog';
 import { useCatalog } from '../data/CatalogProvider';
-import type { CartItem, PendingBooking } from '../types';
+import type { CartItem, PendingBooking, Promo } from '../types';
 
 const ITEMS_KEY = 'dsr-cart-v1';
 const BOOKINGS_KEY = 'dsr-cart-bookings-v1';
+const PROMO_KEY = 'dsr-cart-promo-v1';
+
+export type PromoApplyResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid' | 'expired' | 'exhausted' | 'inactive' };
 
 interface CartValue {
   items: CartItem[];
@@ -29,6 +34,16 @@ interface CartValue {
   productSubtotal: number;
   serviceSubtotal: number;
   subtotal: number;
+  /** Código de cupón aplicado (si pasa la validación contra el catálogo). */
+  appliedPromoCode: string | null;
+  /** Promo resuelta del catálogo si está aplicada y aún es válida; null si no. */
+  appliedPromo: Promo | null;
+  /** Descuento absoluto aplicado por la promo. 0 si no aplica. */
+  promoDiscount: number;
+  /** Total final (subtotal − promoDiscount, mínimo 0). */
+  total: number;
+  applyPromo: (code: string) => PromoApplyResult;
+  removePromo: () => void;
   add: (productId: string, qty?: number) => void;
   setQty: (productId: string, qty: number) => void;
   remove: (productId: string) => void;
@@ -52,6 +67,12 @@ const CartCtx = createContext<CartValue>({
   productSubtotal: 0,
   serviceSubtotal: 0,
   subtotal: 0,
+  appliedPromoCode: null,
+  appliedPromo: null,
+  promoDiscount: 0,
+  total: 0,
+  applyPromo: () => ({ ok: false, reason: 'invalid' }),
+  removePromo: noop,
   add: noop,
   setQty: noop,
   remove: noop,
@@ -132,6 +153,32 @@ function save<T>(key: string, value: T) {
   }
 }
 
+function loadPromoCode(): string | null {
+  try {
+    const raw = window.localStorage.getItem(PROMO_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === 'string' && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Valida una promo del catálogo: activa, no expirada, no agotada.
+function validatePromo(
+  promo: Promo,
+): { ok: true } | { ok: false; reason: 'expired' | 'exhausted' | 'inactive' } {
+  if (!promo.active) return { ok: false, reason: 'inactive' };
+  if (promo.validUntil) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (promo.validUntil < today) return { ok: false, reason: 'expired' };
+  }
+  if (typeof promo.maxUses === 'number' && promo.usedCount >= promo.maxUses) {
+    return { ok: false, reason: 'exhausted' };
+  }
+  return { ok: true };
+}
+
 function generateBookingId(): string {
   return `pb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -142,6 +189,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const catalog = useCatalog();
   const [items, setItems] = useState<CartItem[]>(loadItems);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>(loadBookings);
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(loadPromoCode);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
@@ -151,6 +199,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     save(BOOKINGS_KEY, pendingBookings);
   }, [pendingBookings]);
+
+  useEffect(() => {
+    save(PROMO_KEY, appliedPromoCode);
+  }, [appliedPromoCode]);
 
   const add = useCallback((productId: string, qty: number = 1) => {
     if (qty <= 0) return;
@@ -198,7 +250,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => {
     setItems([]);
     setPendingBookings([]);
+    setAppliedPromoCode(null);
   }, []);
+
+  const applyPromo = useCallback(
+    (code: string): PromoApplyResult => {
+      const normalized = code.trim().toUpperCase();
+      if (!normalized) return { ok: false, reason: 'invalid' };
+      const promo = catalog
+        .getPromos()
+        .find((p) => p.code.toUpperCase() === normalized);
+      if (!promo) return { ok: false, reason: 'invalid' };
+      const v = validatePromo(promo);
+      if (!v.ok) return { ok: false, reason: v.reason };
+      setAppliedPromoCode(normalized);
+      return { ok: true };
+    },
+    [catalog],
+  );
+
+  const removePromo = useCallback(() => setAppliedPromoCode(null), []);
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -226,6 +297,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return { count, subtotal };
   }, [pendingBookings]);
 
+  // Promo derivada del code aplicado. Si la promo dejó de ser válida
+  // (admin la borró/desactivó/expiró), el cupón se ignora silenciosamente
+  // hasta que el user lo quite o ingrese otro.
+  const subtotal = productMetrics.subtotal + serviceMetrics.subtotal;
+  const appliedPromo = useMemo<Promo | null>(() => {
+    if (!appliedPromoCode) return null;
+    const promo = catalog
+      .getPromos()
+      .find((p) => p.code.toUpperCase() === appliedPromoCode);
+    if (!promo) return null;
+    return validatePromo(promo).ok ? promo : null;
+  }, [appliedPromoCode, catalog]);
+  const promoDiscount = useMemo(() => {
+    if (!appliedPromo) return 0;
+    if (appliedPromo.type === 'pct') {
+      return Math.min(subtotal, Math.round((subtotal * appliedPromo.value) / 100));
+    }
+    return Math.min(subtotal, appliedPromo.value);
+  }, [appliedPromo, subtotal]);
+  const total = Math.max(0, subtotal - promoDiscount);
+
   const value = useMemo<CartValue>(
     () => ({
       items,
@@ -235,7 +327,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       count: productMetrics.count + serviceMetrics.count,
       productSubtotal: productMetrics.subtotal,
       serviceSubtotal: serviceMetrics.subtotal,
-      subtotal: productMetrics.subtotal + serviceMetrics.subtotal,
+      subtotal,
+      appliedPromoCode,
+      appliedPromo,
+      promoDiscount,
+      total,
+      applyPromo,
+      removePromo,
       add,
       setQty,
       remove,
@@ -253,6 +351,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       pendingBookings,
       productMetrics,
       serviceMetrics,
+      subtotal,
+      appliedPromoCode,
+      appliedPromo,
+      promoDiscount,
+      total,
+      applyPromo,
+      removePromo,
       add,
       setQty,
       remove,

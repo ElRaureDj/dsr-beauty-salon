@@ -14,6 +14,7 @@ import { Body, Eyebrow, GoldRule, H2, Tiny } from './Typography';
 import { Btn, GhostBtn } from './Buttons';
 import { Ico, Icons } from './Icon';
 import { Img } from './Layout';
+import { PromoInput } from './PromoInput';
 
 const ANIMATION_MS = 320;
 
@@ -483,6 +484,9 @@ export function CartDrawer() {
               flexShrink: 0,
             }}
           >
+            <div style={{ marginBottom: 12 }}>
+              <PromoInput />
+            </div>
             {/* Subtotals */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
               {cart.serviceCount > 0 && (
@@ -499,10 +503,18 @@ export function CartDrawer() {
                   T={T}
                 />
               )}
+              {cart.appliedPromo && cart.promoDiscount > 0 && (
+                <Row
+                  label={`${t('promoApplied')} · ${cart.appliedPromo.code}`}
+                  value={`−€${cart.promoDiscount}`}
+                  T={T}
+                  highlight
+                />
+              )}
               <GoldRule width={28} style={{ marginTop: 6, marginBottom: 4 }} />
               <Row
                 label="Total"
-                value={`€${cart.subtotal}`}
+                value={`€${cart.total}`}
                 T={T}
                 bold
               />
@@ -630,11 +642,13 @@ function Row({
   value,
   T,
   bold = false,
+  highlight = false,
 }: {
   label: string;
   value: string;
   T: ReturnType<typeof useTheme>;
   bold?: boolean;
+  highlight?: boolean;
 }) {
   return (
     <div
@@ -645,20 +659,20 @@ function Row({
       }}
     >
       <Tiny
-        muted={!bold}
+        muted={!bold && !highlight}
         style={{
           letterSpacing: 0.4,
           textTransform: 'none',
           fontSize: bold ? 13 : 11,
           fontWeight: bold ? 500 : 400,
-          color: bold ? T.text : undefined,
+          color: bold ? T.text : highlight ? T.gold : undefined,
         }}
       >
         {label}
       </Tiny>
       <Tiny
         style={{
-          color: bold ? T.gold : T.text,
+          color: bold || highlight ? T.gold : T.text,
           fontFamily: bold ? T.serif : T.sans,
           fontStyle: bold ? 'italic' : 'normal',
           fontSize: bold ? 18 : 12,

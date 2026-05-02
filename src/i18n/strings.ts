@@ -177,6 +177,14 @@ export interface I18nStrings {
   combosBookCombo: string;
   combosResetSeed: string;
   comboApplied: string;
+  promoCodePlaceholder: string;
+  promoApply: string;
+  promoRemove: string;
+  promoApplied: string;
+  promoInvalid: string;
+  promoExpired: string;
+  promoExhausted: string;
+  promoInactive: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -357,6 +365,14 @@ export const I18N: Record<Lang, I18nStrings> = {
     combosBookCombo: 'Reservar este combo',
     combosResetSeed: 'Restaurar combos iniciales',
     comboApplied: 'Combo aplicado',
+    promoCodePlaceholder: 'Código de cupón',
+    promoApply: 'Aplicar',
+    promoRemove: 'Quitar',
+    promoApplied: 'Cupón aplicado',
+    promoInvalid: 'Código no válido',
+    promoExpired: 'Cupón expirado',
+    promoExhausted: 'Cupón agotado',
+    promoInactive: 'Cupón inactivo',
   },
   en: {
     welcome: 'Welcome',
@@ -533,5 +549,13 @@ export const I18N: Record<Lang, I18nStrings> = {
     combosBookCombo: 'Book this bundle',
     combosResetSeed: 'Reset to initial bundles',
     comboApplied: 'Bundle applied',
+    promoCodePlaceholder: 'Promo code',
+    promoApply: 'Apply',
+    promoRemove: 'Remove',
+    promoApplied: 'Code applied',
+    promoInvalid: 'Invalid code',
+    promoExpired: 'Code expired',
+    promoExhausted: 'Code redeemed out',
+    promoInactive: 'Code inactive',
   },
 };

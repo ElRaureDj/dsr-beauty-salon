@@ -12,6 +12,7 @@ import {
   Ico,
   Icons,
   Img,
+  PromoInput,
   Screen,
   Tiny,
 } from '../components/atoms';
@@ -39,6 +40,7 @@ export function Bag() {
   const subtotal = cart.subtotal;
   const shipping = 0;
   const isEmpty = rows.length === 0;
+  const total = Math.max(0, subtotal + shipping - cart.promoDiscount);
 
   return (
     <Screen padTop={0} padBottom={isEmpty ? 0 : 140}>
@@ -204,9 +206,13 @@ export function Bag() {
               ))}
             </div>
 
+            <div style={{ marginTop: 28 }}>
+              <PromoInput />
+            </div>
+
             <div
               style={{
-                marginTop: 28,
+                marginTop: 14,
                 padding: 18,
                 background: T.surface,
                 boxShadow: `inset 0 0 0 1px ${T.line}`,
@@ -236,6 +242,26 @@ export function Bag() {
                 </Tiny>
                 <Tiny style={{ color: T.gold }}>{t('free')}</Tiny>
               </div>
+              {cart.appliedPromo && cart.promoDiscount > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '4px 0',
+                  }}
+                >
+                  <Tiny
+                    style={{
+                      color: T.gold,
+                      letterSpacing: 0.4,
+                      textTransform: 'none',
+                    }}
+                  >
+                    {t('promoApplied')} · {cart.appliedPromo.code}
+                  </Tiny>
+                  <Tiny style={{ color: T.gold }}>−€{cart.promoDiscount}</Tiny>
+                </div>
+              )}
               <Divider style={{ margin: '10px 0' }} />
               <div
                 style={{
@@ -245,7 +271,7 @@ export function Bag() {
                 }}
               >
                 <Body style={{ fontWeight: 500 }}>Total</Body>
-                <H3 style={{ color: T.gold, fontStyle: 'italic' }}>€{subtotal + shipping}</H3>
+                <H3 style={{ color: T.gold, fontStyle: 'italic' }}>€{total}</H3>
               </div>
               <Tiny
                 style={{
@@ -257,7 +283,7 @@ export function Bag() {
                   textAlign: 'right',
                 }}
               >
-                +{Math.round(subtotal * 10)} {t('points')}
+                +{Math.round(total * 10)} {t('points')}
               </Tiny>
             </div>
           </div>
