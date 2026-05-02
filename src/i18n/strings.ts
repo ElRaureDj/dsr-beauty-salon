@@ -176,6 +176,7 @@ export interface I18nStrings {
   combosSavePct: string;
   combosBookCombo: string;
   combosResetSeed: string;
+  comboApplied: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -355,6 +356,7 @@ export const I18N: Record<Lang, I18nStrings> = {
     combosSavePct: 'ahorra',
     combosBookCombo: 'Reservar este combo',
     combosResetSeed: 'Restaurar combos iniciales',
+    comboApplied: 'Combo aplicado',
   },
   en: {
     welcome: 'Welcome',
@@ -530,5 +532,6 @@ export const I18N: Record<Lang, I18nStrings> = {
     combosSavePct: 'save',
     combosBookCombo: 'Book this bundle',
     combosResetSeed: 'Reset to initial bundles',
+    comboApplied: 'Bundle applied',
   },
 };

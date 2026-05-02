@@ -83,6 +83,7 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
             look: params.look,
             variant: params.variant,
             addonProductIds: params.addonProductIds,
+            combo: params.combo,
           }}
           editingBookingId={params.editingBooking}
         />

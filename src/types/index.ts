@@ -249,6 +249,10 @@ export interface PendingBooking {
   variant?: 'standard' | 'premium' | 'custom';
   /** Productos add-on incluidos en la cita. */
   addonProductIds?: string[];
+  /** Si la cita viene de un combo, su id (para mostrar nombre + badge). */
+  comboId?: string;
+  /** Descuento aplicado al subtotal de servicios (0–100). Hoy solo lo set un combo. */
+  discountPct?: number;
 }
 
 // Combos: paquetes predefinidos de servicios con descuento.
@@ -299,6 +303,8 @@ export interface RouteParams {
   editingBooking?: string;
   variant?: 'standard' | 'premium' | 'custom';
   addonProductIds?: string[];
+  /** Combo seleccionado: prellena servicios + aplica descuento en Booking. */
+  combo?: string;
 }
 
 export interface Route {

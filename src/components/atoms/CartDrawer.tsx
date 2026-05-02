@@ -22,7 +22,7 @@ export function CartDrawer() {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
-  const { getProduct, getService, getArtisan } = useCatalog();
+  const { getProduct, getService, getArtisan, getCombo } = useCatalog();
 
   // Cerrar con Escape cuando está abierto.
   useEffect(() => {
@@ -180,6 +180,7 @@ export function CartDrawer() {
               const services = b.serviceIds
                 .map(getService)
                 .filter((s): s is NonNullable<ReturnType<typeof getService>> => !!s);
+              const combo = b.comboId ? getCombo(b.comboId) : null;
               const dateLabel = new Date(b.date)
                 .toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
                   weekday: 'short',
@@ -206,12 +207,32 @@ export function CartDrawer() {
                       }}
                     >
                       {dateLabel} · {b.time}
+                      {combo && b.discountPct ? ` · −${b.discountPct}%` : ''}
                     </Tiny>
                     <Body style={{ marginTop: 4, fontSize: 13, fontWeight: 500 }}>
-                      {services
-                        .map((s) => (lang === 'es' ? s.es : s.en))
-                        .join(' + ')}
+                      {combo
+                        ? lang === 'es'
+                          ? combo.name_es
+                          : combo.name_en
+                        : services
+                            .map((s) => (lang === 'es' ? s.es : s.en))
+                            .join(' + ')}
                     </Body>
+                    {combo && (
+                      <Tiny
+                        muted
+                        style={{
+                          marginTop: 2,
+                          fontSize: 10,
+                          letterSpacing: 0.3,
+                          textTransform: 'none',
+                        }}
+                      >
+                        {services
+                          .map((s) => (lang === 'es' ? s.es : s.en))
+                          .join(' + ')}
+                      </Tiny>
+                    )}
                     <Tiny
                       muted
                       style={{

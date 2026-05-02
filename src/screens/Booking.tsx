@@ -34,6 +34,7 @@ interface BookingProps {
     look?: string;
     variant?: 'standard' | 'premium' | 'custom';
     addonProductIds?: string[];
+    combo?: string;
   };
   editingBookingId?: string;
 }
@@ -43,7 +44,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
-  const { getProduct, getService, getArtisan, getAllServices, getAllArtisans } =
+  const { getProduct, getService, getArtisan, getCombo, getAllServices, getAllArtisans } =
     useCatalog();
 
   // Si venimos del drawer con un booking guardado, pre-cargamos el state.
@@ -55,12 +56,31 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   );
   const isEditing = editingSnapshot !== null;
 
+  // Combo: persiste id + discount en estado. Se resuelve una sola vez
+  // (al mount) y luego se conserva incluso si el admin edita el combo.
+  const [comboId] = useState<string | null>(() => {
+    if (editingSnapshot?.comboId) return editingSnapshot.comboId;
+    return initial.combo ?? null;
+  });
+  const [discountPct] = useState<number>(() => {
+    if (editingSnapshot?.discountPct !== undefined) return editingSnapshot.discountPct;
+    if (initial.combo) {
+      const c = getCombo(initial.combo);
+      return c?.discountPct ?? 0;
+    }
+    return 0;
+  });
+
   const [step, setStep] = useState<number>(() => {
     if (editingSnapshot) return 3;
-    return initial.service ? 1 : 0;
+    return initial.service || initial.combo ? 1 : 0;
   });
   const [services, setServices] = useState<string[]>(() => {
     if (editingSnapshot) return [...editingSnapshot.serviceIds];
+    if (initial.combo) {
+      const c = getCombo(initial.combo);
+      if (c) return [...c.serviceIds];
+    }
     return initial.service ? [initial.service] : [];
   });
   const [artisan, setArtisan] = useState<string | null>(() => {
@@ -113,7 +133,18 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
     const p = getProduct(pid);
     return a + (p?.price ?? 0);
   }, 0);
-  const totalPrice = baseServicePrice + addonsTotal;
+  // El combo solo aplica si todos sus servicios siguen seleccionados.
+  // Si el usuario quita uno en step 0, el descuento se cancela visualmente
+  // y al persistir.
+  const comboObj = comboId ? getCombo(comboId) : null;
+  const comboStillValid = !!(
+    comboObj && comboObj.serviceIds.every((id) => services.includes(id))
+  );
+  const effectiveDiscountPct = comboStillValid ? discountPct : 0;
+  const discountAmount = Math.round(
+    (baseServicePrice * effectiveDiscountPct) / 100,
+  );
+  const totalPrice = baseServicePrice - discountAmount + addonsTotal;
   const totalMin = chosenSvcs.reduce((a, s) => a + s.duration, 0);
 
   const arObj = artisan && artisan !== 'any' ? getArtisan(artisan) : null;
@@ -729,6 +760,36 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                     <Body style={{ fontSize: 13 }}>€{s.price}</Body>
                   </div>
                 ))}
+                {comboObj && comboStillValid && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'baseline',
+                      padding: '10px 0 4px',
+                      marginTop: 6,
+                      borderTop: `1px dashed ${T.line}`,
+                    }}
+                  >
+                    <div>
+                      <Tiny
+                        style={{
+                          color: T.gold,
+                          letterSpacing: 1.4,
+                          fontSize: 10,
+                        }}
+                      >
+                        {t('comboApplied')}
+                      </Tiny>
+                      <Body style={{ fontSize: 12, marginTop: 2, color: T.text }}>
+                        {lang === 'es' ? comboObj.name_es : comboObj.name_en} · −{discountPct}%
+                      </Body>
+                    </div>
+                    <Body style={{ fontSize: 13, color: T.gold, fontStyle: 'italic' }}>
+                      −€{discountAmount}
+                    </Body>
+                  </div>
+                )}
               </div>
               <Divider style={{ margin: '14px 0' }} />
               <div
@@ -982,6 +1043,8 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                     notes: notes || undefined,
                     variant,
                     addonProductIds: addonProductIds.length > 0 ? addonProductIds : undefined,
+                    comboId: comboStillValid ? comboId ?? undefined : undefined,
+                    discountPct: comboStillValid && discountPct > 0 ? discountPct : undefined,
                   });
                   cart.openDrawer();
                   go('home');
@@ -1015,6 +1078,8 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                     notes: notes || undefined,
                     variant,
                     addonProductIds: addonProductIds.length > 0 ? addonProductIds : undefined,
+                    comboId: comboStillValid ? comboId ?? undefined : undefined,
+                    discountPct: comboStillValid && discountPct > 0 ? discountPct : undefined,
                   });
                   cart.openDrawer();
                   go('home');

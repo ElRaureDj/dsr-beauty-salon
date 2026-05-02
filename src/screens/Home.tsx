@@ -341,7 +341,7 @@ export function Home() {
                   key={c.id}
                   onClick={() => {
                     if (c.serviceIds.length > 0) {
-                      go('book', { service: c.serviceIds[0] });
+                      go('book', { combo: c.id });
                     }
                   }}
                   className="dsr-press"
