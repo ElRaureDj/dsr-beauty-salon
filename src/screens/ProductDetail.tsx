@@ -31,10 +31,17 @@ export function ProductDetail({ id }: { id: string }) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
-  const p = useCatalog().getProduct(id);
+  const { getProduct, getStock } = useCatalog();
+  const p = getProduct(id);
   const [tab, setTab] = useState(0);
   const [bag, setBag] = useState(false);
   if (!p) return null;
+  const stockInfo = getStock(p.id);
+  const isOutOfStock = stockInfo.stock <= 0;
+  const isLowStock =
+    !isOutOfStock &&
+    stockInfo.lowStockAt > 0 &&
+    stockInfo.stock <= stockInfo.lowStockAt;
   const slides: Slide[] = [
     ...(p.video ? [{ video: p.video, poster: p.photo }] : []),
     ...p.photos.map((src) => ({ src })),
@@ -188,6 +195,40 @@ export function ProductDetail({ id }: { id: string }) {
           </Tiny>
         </div>
 
+        {(isLowStock || isOutOfStock) && (
+          <div
+            style={{
+              marginTop: 14,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 12px',
+              background: isOutOfStock ? T.surface : `${T.gold}14`,
+              boxShadow: `inset 0 0 0 1px ${isOutOfStock ? T.lineStrong : T.gold}55`,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 999,
+                background: isOutOfStock ? T.textFaint : T.gold,
+              }}
+            />
+            <Tiny
+              style={{
+                color: isOutOfStock ? T.textMuted : T.gold,
+                letterSpacing: 1.4,
+                fontSize: 10,
+              }}
+            >
+              {isOutOfStock
+                ? t('outOfStock')
+                : t('lowStock').replace('{n}', String(stockInfo.stock))}
+            </Tiny>
+          </div>
+        )}
+
         <GoldRule width={36} style={{ marginTop: 22 }} />
 
         <Body style={{ marginTop: 18, fontSize: 14, lineHeight: 1.7 }}>
@@ -314,8 +355,9 @@ export function ProductDetail({ id }: { id: string }) {
           </div>
           <Btn
             fullWidth={false}
+            disabled={isOutOfStock}
             onClick={() => {
-              if (bag) return;
+              if (bag || isOutOfStock) return;
               cart.add(p.id, 1);
               setBag(true);
               setTimeout(() => go('bag'), 380);
@@ -323,12 +365,20 @@ export function ProductDetail({ id }: { id: string }) {
             style={{
               flex: 2,
               transition: 'all .3s',
-              background: bag ? T.bg : T.gold,
-              color: bag ? T.gold : T.bg,
-              boxShadow: bag ? `inset 0 0 0 1px ${T.gold}` : 'none',
+              background: isOutOfStock ? T.surface : bag ? T.bg : T.gold,
+              color: isOutOfStock ? T.textFaint : bag ? T.gold : T.bg,
+              boxShadow:
+                isOutOfStock
+                  ? `inset 0 0 0 1px ${T.line}`
+                  : bag
+                    ? `inset 0 0 0 1px ${T.gold}`
+                    : 'none',
+              cursor: isOutOfStock ? 'not-allowed' : 'pointer',
             }}
           >
-            {bag ? (
+            {isOutOfStock ? (
+              t('outOfStockShort')
+            ) : bag ? (
               <>
                 <Ico size={14} color={T.gold} stroke={2.5}>
                   {Icons.check}

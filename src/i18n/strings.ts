@@ -190,6 +190,9 @@ export interface I18nStrings {
   salonResponse: string;
   seeAllReviews: string;
   noReviewsYet: string;
+  lowStock: string;
+  outOfStock: string;
+  outOfStockShort: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -383,6 +386,9 @@ export const I18N: Record<Lang, I18nStrings> = {
     salonResponse: 'Respuesta del salón',
     seeAllReviews: 'Ver todas',
     noReviewsYet: 'Aún sin reseñas',
+    lowStock: 'Quedan {n} unidades',
+    outOfStock: 'Agotado',
+    outOfStockShort: 'No disponible',
   },
   en: {
     welcome: 'Welcome',
@@ -572,5 +578,8 @@ export const I18N: Record<Lang, I18nStrings> = {
     salonResponse: 'Salon response',
     seeAllReviews: 'See all',
     noReviewsYet: 'No reviews yet',
+    lowStock: 'Only {n} left',
+    outOfStock: 'Out of stock',
+    outOfStockShort: 'Unavailable',
   },
 };
