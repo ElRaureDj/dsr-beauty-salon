@@ -44,6 +44,14 @@ const VARIANTS_KEY = 'dsr-admin-variants-v1';
 const PRODUCTS_KEY = 'dsr-admin-products-v1';
 const SERVICES_KEY = 'dsr-admin-services-v1';
 const ARTISANS_KEY = 'dsr-admin-artisans-v1';
+// Items creados desde admin (no existen en seeds).
+const CREATED_PRODUCTS_KEY = 'dsr-admin-created-products-v1';
+const CREATED_SERVICES_KEY = 'dsr-admin-created-services-v1';
+const CREATED_ARTISANS_KEY = 'dsr-admin-created-artisans-v1';
+// Items del seed que el admin marcó como borrados (soft delete).
+const DELETED_PRODUCTS_KEY = 'dsr-admin-deleted-products-v1';
+const DELETED_SERVICES_KEY = 'dsr-admin-deleted-services-v1';
+const DELETED_ARTISANS_KEY = 'dsr-admin-deleted-artisans-v1';
 const COMBOS_KEY = 'dsr-admin-combos-v1';
 const STOCKS_KEY = 'dsr-admin-stocks-v1';
 const PROMOS_KEY = 'dsr-admin-promos-v1';
@@ -79,18 +87,24 @@ interface CatalogValue {
   getAllProducts: () => Product[];
   updateProduct: (id: string, fields: Partial<Product>) => void;
   resetProduct: (id: string) => void;
+  createProduct: (data: Omit<Product, 'id'>) => string;
+  deleteProduct: (id: string) => void;
   productOverrideIds: string[];
   // Services
   getService: (id: string) => Service | undefined;
   getAllServices: () => Service[];
   updateService: (id: string, fields: Partial<Service>) => void;
   resetService: (id: string) => void;
+  createService: (data: Omit<Service, 'id'>) => string;
+  deleteService: (id: string) => void;
   serviceOverrideIds: string[];
   // Artisans
   getArtisan: (id: string) => Artisan | undefined;
   getAllArtisans: () => Artisan[];
   updateArtisan: (id: string, fields: Partial<Artisan>) => void;
   resetArtisan: (id: string) => void;
+  createArtisan: (data: Omit<Artisan, 'id'>) => string;
+  deleteArtisan: (id: string) => void;
   artisanOverrideIds: string[];
   // Combos — viven enteros en localStorage, no como overlay (porque
   // es CRUD completo: crear/editar/borrar). El "reset" restaura SEED_COMBOS.
@@ -135,16 +149,22 @@ const CatalogCtx = createContext<CatalogValue>({
   getAllProducts: () => PRODUCTS,
   updateProduct: noop,
   resetProduct: noop,
+  createProduct: () => '',
+  deleteProduct: noop,
   productOverrideIds: [],
   getService: (id) => SERVICES.find((s) => s.id === id),
   getAllServices: () => SERVICES,
   updateService: noop,
   resetService: noop,
+  createService: () => '',
+  deleteService: noop,
   serviceOverrideIds: [],
   getArtisan: (id) => ARTISANS.find((a) => a.id === id),
   getAllArtisans: () => ARTISANS,
   updateArtisan: noop,
   resetArtisan: noop,
+  createArtisan: () => '',
+  deleteArtisan: noop,
   artisanOverrideIds: [],
   getCombos: () => SEED_COMBOS,
   getCombo: (id) => SEED_COMBOS.find((c) => c.id === id),
@@ -194,6 +214,10 @@ function generatePromoId(): string {
   return `pr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function generateId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 export function CatalogProvider({ children }: { children: ReactNode }) {
   const [variants, setVariants] = useState<VariantsOverride>(() =>
     loadJSON(VARIANTS_KEY, {}),
@@ -206,6 +230,26 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   );
   const [artisanOverrides, setArtisanOverrides] = useState<ArtisanOverrides>(() =>
     loadJSON(ARTISANS_KEY, {}),
+  );
+  // Items nuevos creados desde admin (no en seeds estáticos).
+  const [createdProducts, setCreatedProducts] = useState<Product[]>(() =>
+    loadJSON<Product[]>(CREATED_PRODUCTS_KEY, []),
+  );
+  const [createdServices, setCreatedServices] = useState<Service[]>(() =>
+    loadJSON<Service[]>(CREATED_SERVICES_KEY, []),
+  );
+  const [createdArtisans, setCreatedArtisans] = useState<Artisan[]>(() =>
+    loadJSON<Artisan[]>(CREATED_ARTISANS_KEY, []),
+  );
+  // Soft-delete: ids del seed marcados como borrados.
+  const [deletedProductIds, setDeletedProductIds] = useState<string[]>(() =>
+    loadJSON<string[]>(DELETED_PRODUCTS_KEY, []),
+  );
+  const [deletedServiceIds, setDeletedServiceIds] = useState<string[]>(() =>
+    loadJSON<string[]>(DELETED_SERVICES_KEY, []),
+  );
+  const [deletedArtisanIds, setDeletedArtisanIds] = useState<string[]>(() =>
+    loadJSON<string[]>(DELETED_ARTISANS_KEY, []),
   );
   const [combos, setCombos] = useState<Combo[]>(() =>
     loadJSON<Combo[]>(COMBOS_KEY, SEED_COMBOS),
@@ -250,6 +294,24 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }, [artisanOverrides]);
   useEffect(() => {
+    try { window.localStorage.setItem(CREATED_PRODUCTS_KEY, JSON.stringify(createdProducts)); } catch { /* ignore */ }
+  }, [createdProducts]);
+  useEffect(() => {
+    try { window.localStorage.setItem(CREATED_SERVICES_KEY, JSON.stringify(createdServices)); } catch { /* ignore */ }
+  }, [createdServices]);
+  useEffect(() => {
+    try { window.localStorage.setItem(CREATED_ARTISANS_KEY, JSON.stringify(createdArtisans)); } catch { /* ignore */ }
+  }, [createdArtisans]);
+  useEffect(() => {
+    try { window.localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify(deletedProductIds)); } catch { /* ignore */ }
+  }, [deletedProductIds]);
+  useEffect(() => {
+    try { window.localStorage.setItem(DELETED_SERVICES_KEY, JSON.stringify(deletedServiceIds)); } catch { /* ignore */ }
+  }, [deletedServiceIds]);
+  useEffect(() => {
+    try { window.localStorage.setItem(DELETED_ARTISANS_KEY, JSON.stringify(deletedArtisanIds)); } catch { /* ignore */ }
+  }, [deletedArtisanIds]);
+  useEffect(() => {
     try {
       window.localStorage.setItem(COMBOS_KEY, JSON.stringify(combos));
     } catch { /* ignore */ }
@@ -292,23 +354,25 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const resetVariants = useCallback(() => setVariants({}), []);
   const overriddenServiceIds = useMemo(() => Object.keys(variants), [variants]);
 
-  // Products — merged + override per id
+  // Products — merged (base seed + creados) - eliminados, con override per id
   const getProduct = useCallback(
     (id: string): Product | undefined => {
-      const base = PRODUCTS.find((p) => p.id === id);
+      if (deletedProductIds.includes(id)) return undefined;
+      const created = createdProducts.find((p) => p.id === id);
+      const base = created ?? PRODUCTS.find((p) => p.id === id);
       if (!base) return undefined;
       const ov = productOverrides[id];
       return ov ? { ...base, ...ov } : base;
     },
-    [productOverrides],
+    [productOverrides, createdProducts, deletedProductIds],
   );
-  const getAllProducts = useCallback(
-    (): Product[] =>
-      PRODUCTS.map((p) =>
-        productOverrides[p.id] ? { ...p, ...productOverrides[p.id] } : p,
-      ),
-    [productOverrides],
-  );
+  const getAllProducts = useCallback((): Product[] => {
+    const baseFiltered = PRODUCTS.filter((p) => !deletedProductIds.includes(p.id));
+    const merged = [...baseFiltered, ...createdProducts];
+    return merged.map((p) =>
+      productOverrides[p.id] ? { ...p, ...productOverrides[p.id] } : p,
+    );
+  }, [productOverrides, createdProducts, deletedProductIds]);
   const updateProduct = useCallback(
     (id: string, fields: Partial<Product>) =>
       setProductOverrides((prev) => ({
@@ -326,6 +390,26 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       }),
     [],
   );
+  const createProduct = useCallback((data: Omit<Product, 'id'>): string => {
+    const id = generateId('prod');
+    setCreatedProducts((prev) => [...prev, { ...data, id }]);
+    return id;
+  }, []);
+  const deleteProduct = useCallback((id: string) => {
+    // Si era un creado, lo quitamos del array. Si era de seed, soft-delete.
+    setCreatedProducts((prev) => {
+      if (prev.some((p) => p.id === id)) return prev.filter((p) => p.id !== id);
+      return prev;
+    });
+    if (PRODUCTS.some((p) => p.id === id)) {
+      setDeletedProductIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    }
+    setProductOverrides((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
   const productOverrideIds = useMemo(
     () => Object.keys(productOverrides),
     [productOverrides],
@@ -334,20 +418,22 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   // Services
   const getService = useCallback(
     (id: string): Service | undefined => {
-      const base = SERVICES.find((s) => s.id === id);
+      if (deletedServiceIds.includes(id)) return undefined;
+      const created = createdServices.find((s) => s.id === id);
+      const base = created ?? SERVICES.find((s) => s.id === id);
       if (!base) return undefined;
       const ov = serviceOverrides[id];
       return ov ? { ...base, ...ov } : base;
     },
-    [serviceOverrides],
+    [serviceOverrides, createdServices, deletedServiceIds],
   );
-  const getAllServices = useCallback(
-    (): Service[] =>
-      SERVICES.map((s) =>
-        serviceOverrides[s.id] ? { ...s, ...serviceOverrides[s.id] } : s,
-      ),
-    [serviceOverrides],
-  );
+  const getAllServices = useCallback((): Service[] => {
+    const baseFiltered = SERVICES.filter((s) => !deletedServiceIds.includes(s.id));
+    const merged = [...baseFiltered, ...createdServices];
+    return merged.map((s) =>
+      serviceOverrides[s.id] ? { ...s, ...serviceOverrides[s.id] } : s,
+    );
+  }, [serviceOverrides, createdServices, deletedServiceIds]);
   const updateService = useCallback(
     (id: string, fields: Partial<Service>) =>
       setServiceOverrides((prev) => ({
@@ -365,6 +451,25 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       }),
     [],
   );
+  const createService = useCallback((data: Omit<Service, 'id'>): string => {
+    const id = generateId('svc');
+    setCreatedServices((prev) => [...prev, { ...data, id }]);
+    return id;
+  }, []);
+  const deleteService = useCallback((id: string) => {
+    setCreatedServices((prev) => {
+      if (prev.some((s) => s.id === id)) return prev.filter((s) => s.id !== id);
+      return prev;
+    });
+    if (SERVICES.some((s) => s.id === id)) {
+      setDeletedServiceIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    }
+    setServiceOverrides((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
   const serviceOverrideIds = useMemo(
     () => Object.keys(serviceOverrides),
     [serviceOverrides],
@@ -373,20 +478,22 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   // Artisans
   const getArtisan = useCallback(
     (id: string): Artisan | undefined => {
-      const base = ARTISANS.find((a) => a.id === id);
+      if (deletedArtisanIds.includes(id)) return undefined;
+      const created = createdArtisans.find((a) => a.id === id);
+      const base = created ?? ARTISANS.find((a) => a.id === id);
       if (!base) return undefined;
       const ov = artisanOverrides[id];
       return ov ? { ...base, ...ov } : base;
     },
-    [artisanOverrides],
+    [artisanOverrides, createdArtisans, deletedArtisanIds],
   );
-  const getAllArtisans = useCallback(
-    (): Artisan[] =>
-      ARTISANS.map((a) =>
-        artisanOverrides[a.id] ? { ...a, ...artisanOverrides[a.id] } : a,
-      ),
-    [artisanOverrides],
-  );
+  const getAllArtisans = useCallback((): Artisan[] => {
+    const baseFiltered = ARTISANS.filter((a) => !deletedArtisanIds.includes(a.id));
+    const merged = [...baseFiltered, ...createdArtisans];
+    return merged.map((a) =>
+      artisanOverrides[a.id] ? { ...a, ...artisanOverrides[a.id] } : a,
+    );
+  }, [artisanOverrides, createdArtisans, deletedArtisanIds]);
   const updateArtisan = useCallback(
     (id: string, fields: Partial<Artisan>) =>
       setArtisanOverrides((prev) => ({
@@ -395,6 +502,25 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       })),
     [],
   );
+  const createArtisan = useCallback((data: Omit<Artisan, 'id'>): string => {
+    const id = generateId('art');
+    setCreatedArtisans((prev) => [...prev, { ...data, id }]);
+    return id;
+  }, []);
+  const deleteArtisan = useCallback((id: string) => {
+    setCreatedArtisans((prev) => {
+      if (prev.some((a) => a.id === id)) return prev.filter((a) => a.id !== id);
+      return prev;
+    });
+    if (ARTISANS.some((a) => a.id === id)) {
+      setDeletedArtisanIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    }
+    setArtisanOverrides((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
   const resetArtisan = useCallback(
     (id: string) =>
       setArtisanOverrides((prev) => {
@@ -530,16 +656,22 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       getAllProducts,
       updateProduct,
       resetProduct,
+      createProduct,
+      deleteProduct,
       productOverrideIds,
       getService,
       getAllServices,
       updateService,
       resetService,
+      createService,
+      deleteService,
       serviceOverrideIds,
       getArtisan,
       getAllArtisans,
       updateArtisan,
       resetArtisan,
+      createArtisan,
+      deleteArtisan,
       artisanOverrideIds,
       getCombos,
       getCombo,
@@ -571,16 +703,22 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       getAllProducts,
       updateProduct,
       resetProduct,
+      createProduct,
+      deleteProduct,
       productOverrideIds,
       getService,
       getAllServices,
       updateService,
       resetService,
+      createService,
+      deleteService,
       serviceOverrideIds,
       getArtisan,
       getAllArtisans,
       updateArtisan,
       resetArtisan,
+      createArtisan,
+      deleteArtisan,
       artisanOverrideIds,
       getCombos,
       getCombo,

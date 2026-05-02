@@ -11,6 +11,8 @@ import {
   GhostBtn,
   H1,
   H3,
+  Ico,
+  Icons,
   Img,
   Tiny,
 } from '../../components/atoms';
@@ -18,15 +20,50 @@ import { useCatalog } from '../../data/CatalogProvider';
 import { Field, SidePanel, TextInput } from '../SidePanel';
 import type { CategoryId, Product, Service } from '../../types';
 
+const NEW_PRODUCT: Omit<Product, 'id'> = {
+  name_es: '',
+  name_en: '',
+  line: 'DSR Maison',
+  cat_es: '',
+  cat_en: '',
+  size: '',
+  price: 0,
+  desc_es: '',
+  desc_en: '',
+  notes_es: [],
+  notes_en: [],
+  photo: '',
+  photos: [],
+  rating: 5,
+  reviews: 0,
+};
+
+const NEW_SERVICE: Omit<Service, 'id'> = {
+  cat: 'hair',
+  es: '',
+  en: '',
+  desc_es: '',
+  desc_en: '',
+  duration: 60,
+  price: 100,
+};
+
 // ─── PRODUCTS ─────────────────────────────────────────────────────────────
 
 export function ProductsSection() {
   const T = useTheme();
   const { lang } = useI18n();
-  const { getAllProducts, updateProduct, resetProduct, productOverrideIds } =
-    useCatalog();
+  const {
+    getAllProducts,
+    updateProduct,
+    resetProduct,
+    createProduct,
+    deleteProduct,
+    productOverrideIds,
+  } = useCatalog();
   const products = getAllProducts();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const editing = editingId ? products.find((p) => p.id === editingId) : null;
 
   return (
@@ -43,20 +80,28 @@ export function ProductsSection() {
               : 'Boutique inventory. Click a row to edit.'}
           </Body>
         </div>
-        <Tiny
-          style={{
-            padding: '8px 12px',
-            background: T.surface,
-            boxShadow: `inset 0 0 0 1px ${T.line}`,
-            fontFamily: T.mono,
-            fontSize: 11,
-            letterSpacing: 0.4,
-            textTransform: 'none',
-          }}
-        >
-          {productOverrideIds.length}{' '}
-          {lang === 'es' ? 'editados' : 'edited'}
-        </Tiny>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <Tiny
+            style={{
+              padding: '8px 12px',
+              background: T.surface,
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
+              fontFamily: T.mono,
+              fontSize: 11,
+              letterSpacing: 0.4,
+              textTransform: 'none',
+            }}
+          >
+            {productOverrideIds.length}{' '}
+            {lang === 'es' ? 'editados' : 'edited'}
+          </Tiny>
+          <Btn onClick={() => setCreating(true)} fullWidth={false}>
+            <Ico size={12} color={T.bg} stroke={2}>
+              {Icons.plus}
+            </Ico>
+            {lang === 'es' ? 'Nuevo producto' : 'New product'}
+          </Btn>
+        </div>
       </div>
 
       <div
@@ -144,21 +189,44 @@ export function ProductsSection() {
         })}
       </div>
 
-      {editing && (
+      {(editing || creating) && (
         <ProductEditor
-          key={editing.id}
-          product={editing}
-          open={!!editing}
-          onClose={() => setEditingId(null)}
+          key={editing?.id ?? 'new'}
+          product={editing ?? { id: '', ...NEW_PRODUCT }}
+          isNew={creating}
+          open={!!(editing || creating)}
+          onClose={() => {
+            setEditingId(null);
+            setCreating(false);
+          }}
           onSave={(fields) => {
-            updateProduct(editing.id, fields);
+            if (creating) {
+              const { id, ...rest } = fields as Product;
+              void id;
+              createProduct(rest);
+            } else if (editing) {
+              updateProduct(editing.id, fields);
+            }
             setEditingId(null);
+            setCreating(false);
           }}
-          onReset={() => {
-            resetProduct(editing.id);
-            setEditingId(null);
-          }}
-          isOverridden={productOverrideIds.includes(editing.id)}
+          onReset={
+            editing
+              ? () => {
+                  resetProduct(editing.id);
+                  setEditingId(null);
+                }
+              : undefined
+          }
+          onDelete={
+            editing
+              ? () => {
+                  deleteProduct(editing.id);
+                  setEditingId(null);
+                }
+              : undefined
+          }
+          isOverridden={editing ? productOverrideIds.includes(editing.id) : false}
         />
       )}
     </div>
@@ -167,45 +235,104 @@ export function ProductsSection() {
 
 function ProductEditor({
   product,
+  isNew,
   open,
   onClose,
   onSave,
   onReset,
+  onDelete,
   isOverridden,
 }: {
   product: Product;
+  isNew: boolean;
   open: boolean;
   onClose: () => void;
   onSave: (fields: Partial<Product>) => void;
-  onReset: () => void;
+  onReset?: () => void;
+  onDelete?: () => void;
   isOverridden: boolean;
 }) {
+  const T = useTheme();
   const { lang } = useI18n();
   const [draft, setDraft] = useState<Product>(product);
   const set = <K extends keyof Product>(k: K, v: Product[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
+  // Mantener photos en sincronía con la photo principal cuando es nuevo
+  // y no hay extras: evita ProductDetail crashee con slides vacíos.
+  const handleSave = () => {
+    if (isNew) {
+      const photos = draft.photos.length > 0 ? draft.photos : draft.photo ? [draft.photo] : [];
+      onSave({ ...draft, photos });
+      return;
+    }
+    onSave(draft);
+  };
+
+  const canSave =
+    !!draft.name_es.trim() && !!draft.name_en.trim() && draft.price >= 0;
+
   return (
     <SidePanel
       open={open}
       onClose={onClose}
-      title={lang === 'es' ? draft.name_es : draft.name_en}
-      subtitle={`${lang === 'es' ? 'Producto' : 'Product'} · ${product.id}`}
+      title={
+        isNew
+          ? lang === 'es'
+            ? 'Nuevo producto'
+            : 'New product'
+          : lang === 'es'
+            ? draft.name_es || 'Producto'
+            : draft.name_en || 'Product'
+      }
+      subtitle={
+        isNew
+          ? lang === 'es'
+            ? 'Nuevo'
+            : 'New'
+          : `${lang === 'es' ? 'Producto' : 'Product'} · ${product.id}`
+      }
       footer={
         <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}>
-          {isOverridden ? (
-            <GhostBtn onClick={onReset}>
-              {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
-            </GhostBtn>
-          ) : (
-            <span />
-          )}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            {!isNew && onDelete && (
+              <button
+                onClick={onDelete}
+                className="dsr-press"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '6px 0',
+                  cursor: 'pointer',
+                  color: T.rouge,
+                  fontFamily: T.sans,
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                  fontWeight: 500,
+                }}
+              >
+                {lang === 'es' ? 'Eliminar' : 'Delete'}
+              </button>
+            )}
+            {!isNew && isOverridden && onReset && (
+              <GhostBtn onClick={onReset}>
+                {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
+              </GhostBtn>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <Btn primary={false} onClick={onClose} fullWidth={false}>
               {lang === 'es' ? 'Cancelar' : 'Cancel'}
             </Btn>
-            <Btn onClick={() => onSave(draft)} fullWidth={false}>
-              {lang === 'es' ? 'Guardar' : 'Save'}
+            <Btn onClick={handleSave} fullWidth={false} disabled={!canSave}>
+              {isNew
+                ? lang === 'es'
+                  ? 'Crear'
+                  : 'Create'
+                : lang === 'es'
+                  ? 'Guardar'
+                  : 'Save'}
             </Btn>
           </div>
         </div>
@@ -295,10 +422,17 @@ function ProductEditor({
 export function ServicesSection() {
   const T = useTheme();
   const { lang } = useI18n();
-  const { getAllServices, updateService, resetService, serviceOverrideIds } =
-    useCatalog();
+  const {
+    getAllServices,
+    updateService,
+    resetService,
+    createService,
+    deleteService,
+    serviceOverrideIds,
+  } = useCatalog();
   const services = getAllServices();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const editing = editingId ? services.find((s) => s.id === editingId) : null;
 
   return (
@@ -315,20 +449,28 @@ export function ServicesSection() {
               : 'Salon services with duration and base price. Click to edit.'}
           </Body>
         </div>
-        <Tiny
-          style={{
-            padding: '8px 12px',
-            background: T.surface,
-            boxShadow: `inset 0 0 0 1px ${T.line}`,
-            fontFamily: T.mono,
-            fontSize: 11,
-            letterSpacing: 0.4,
-            textTransform: 'none',
-          }}
-        >
-          {serviceOverrideIds.length}{' '}
-          {lang === 'es' ? 'editados' : 'edited'}
-        </Tiny>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <Tiny
+            style={{
+              padding: '8px 12px',
+              background: T.surface,
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
+              fontFamily: T.mono,
+              fontSize: 11,
+              letterSpacing: 0.4,
+              textTransform: 'none',
+            }}
+          >
+            {serviceOverrideIds.length}{' '}
+            {lang === 'es' ? 'editados' : 'edited'}
+          </Tiny>
+          <Btn onClick={() => setCreating(true)} fullWidth={false}>
+            <Ico size={12} color={T.bg} stroke={2}>
+              {Icons.plus}
+            </Ico>
+            {lang === 'es' ? 'Nuevo servicio' : 'New service'}
+          </Btn>
+        </div>
       </div>
 
       <div style={{ background: T.surface, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
@@ -420,21 +562,44 @@ export function ServicesSection() {
         })}
       </div>
 
-      {editing && (
+      {(editing || creating) && (
         <ServiceEditor
-          key={editing.id}
-          service={editing}
-          open={!!editing}
-          onClose={() => setEditingId(null)}
+          key={editing?.id ?? 'new'}
+          service={editing ?? { id: '', ...NEW_SERVICE }}
+          isNew={creating}
+          open={!!(editing || creating)}
+          onClose={() => {
+            setEditingId(null);
+            setCreating(false);
+          }}
           onSave={(fields) => {
-            updateService(editing.id, fields);
+            if (creating) {
+              const { id, ...rest } = fields as Service;
+              void id;
+              createService(rest);
+            } else if (editing) {
+              updateService(editing.id, fields);
+            }
             setEditingId(null);
+            setCreating(false);
           }}
-          onReset={() => {
-            resetService(editing.id);
-            setEditingId(null);
-          }}
-          isOverridden={serviceOverrideIds.includes(editing.id)}
+          onReset={
+            editing
+              ? () => {
+                  resetService(editing.id);
+                  setEditingId(null);
+                }
+              : undefined
+          }
+          onDelete={
+            editing
+              ? () => {
+                  deleteService(editing.id);
+                  setEditingId(null);
+                }
+              : undefined
+          }
+          isOverridden={editing ? serviceOverrideIds.includes(editing.id) : false}
         />
       )}
     </div>
@@ -443,17 +608,21 @@ export function ServicesSection() {
 
 function ServiceEditor({
   service,
+  isNew,
   open,
   onClose,
   onSave,
   onReset,
+  onDelete,
   isOverridden,
 }: {
   service: Service;
+  isNew: boolean;
   open: boolean;
   onClose: () => void;
   onSave: (fields: Partial<Service>) => void;
-  onReset: () => void;
+  onReset?: () => void;
+  onDelete?: () => void;
   isOverridden: boolean;
 }) {
   const T = useTheme();
@@ -461,6 +630,8 @@ function ServiceEditor({
   const [draft, setDraft] = useState<Service>(service);
   const set = <K extends keyof Service>(k: K, v: Service[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
+  const canSave =
+    !!draft.es.trim() && !!draft.en.trim() && draft.duration > 0 && draft.price >= 0;
 
   const cats: { id: CategoryId; label: string }[] = [
     { id: 'hair', label: lang === 'es' ? 'Peluquería' : 'Hair' },
@@ -472,23 +643,63 @@ function ServiceEditor({
     <SidePanel
       open={open}
       onClose={onClose}
-      title={lang === 'es' ? draft.es : draft.en}
-      subtitle={`${lang === 'es' ? 'Servicio' : 'Service'} · ${service.id}`}
+      title={
+        isNew
+          ? lang === 'es'
+            ? 'Nuevo servicio'
+            : 'New service'
+          : lang === 'es'
+            ? draft.es || 'Servicio'
+            : draft.en || 'Service'
+      }
+      subtitle={
+        isNew
+          ? lang === 'es'
+            ? 'Nuevo'
+            : 'New'
+          : `${lang === 'es' ? 'Servicio' : 'Service'} · ${service.id}`
+      }
       footer={
         <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}>
-          {isOverridden ? (
-            <GhostBtn onClick={onReset}>
-              {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
-            </GhostBtn>
-          ) : (
-            <span />
-          )}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            {!isNew && onDelete && (
+              <button
+                onClick={onDelete}
+                className="dsr-press"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '6px 0',
+                  cursor: 'pointer',
+                  color: T.rouge,
+                  fontFamily: T.sans,
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                  fontWeight: 500,
+                }}
+              >
+                {lang === 'es' ? 'Eliminar' : 'Delete'}
+              </button>
+            )}
+            {!isNew && isOverridden && onReset && (
+              <GhostBtn onClick={onReset}>
+                {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
+              </GhostBtn>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <Btn primary={false} onClick={onClose} fullWidth={false}>
               {lang === 'es' ? 'Cancelar' : 'Cancel'}
             </Btn>
-            <Btn onClick={() => onSave(draft)} fullWidth={false}>
-              {lang === 'es' ? 'Guardar' : 'Save'}
+            <Btn onClick={() => onSave(draft)} fullWidth={false} disabled={!canSave}>
+              {isNew
+                ? lang === 'es'
+                  ? 'Crear'
+                  : 'Create'
+                : lang === 'es'
+                  ? 'Guardar'
+                  : 'Save'}
             </Btn>
           </div>
         </div>

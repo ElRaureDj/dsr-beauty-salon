@@ -9,6 +9,8 @@ import {
   Eyebrow,
   GhostBtn,
   H1,
+  Ico,
+  Icons,
   Img,
   Tiny,
 } from '../../components/atoms';
@@ -16,13 +18,36 @@ import { useCatalog } from '../../data/CatalogProvider';
 import { Field, SidePanel, TextInput } from '../SidePanel';
 import type { Artisan, CategoryId } from '../../types';
 
+const NEW_ARTISAN: Omit<Artisan, 'id'> = {
+  name: '',
+  role_es: '',
+  role_en: '',
+  cats: ['hair'],
+  specialty_es: '',
+  specialty_en: '',
+  years: 0,
+  bio_es: '',
+  bio_en: '',
+  rating: 5,
+  reviews: 0,
+  photo: '',
+  avatar: '',
+};
+
 export function ArtisansSection() {
   const T = useTheme();
   const { lang } = useI18n();
-  const { getAllArtisans, updateArtisan, resetArtisan, artisanOverrideIds } =
-    useCatalog();
+  const {
+    getAllArtisans,
+    updateArtisan,
+    resetArtisan,
+    createArtisan,
+    deleteArtisan,
+    artisanOverrideIds,
+  } = useCatalog();
   const artisans = getAllArtisans();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const editing = editingId ? artisans.find((a) => a.id === editingId) : null;
 
   return (
@@ -39,20 +64,28 @@ export function ArtisansSection() {
               : 'Salon team. Click a card to edit.'}
           </Body>
         </div>
-        <Tiny
-          style={{
-            padding: '8px 12px',
-            background: T.surface,
-            boxShadow: `inset 0 0 0 1px ${T.line}`,
-            fontFamily: T.mono,
-            fontSize: 11,
-            letterSpacing: 0.4,
-            textTransform: 'none',
-          }}
-        >
-          {artisanOverrideIds.length}{' '}
-          {lang === 'es' ? 'editados' : 'edited'}
-        </Tiny>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <Tiny
+            style={{
+              padding: '8px 12px',
+              background: T.surface,
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
+              fontFamily: T.mono,
+              fontSize: 11,
+              letterSpacing: 0.4,
+              textTransform: 'none',
+            }}
+          >
+            {artisanOverrideIds.length}{' '}
+            {lang === 'es' ? 'editados' : 'edited'}
+          </Tiny>
+          <Btn onClick={() => setCreating(true)} fullWidth={false}>
+            <Ico size={12} color={T.bg} stroke={2}>
+              {Icons.plus}
+            </Ico>
+            {lang === 'es' ? 'Nuevo artista' : 'New artisan'}
+          </Btn>
+        </div>
       </div>
 
       <div
@@ -140,21 +173,45 @@ export function ArtisansSection() {
         })}
       </div>
 
-      {editing && (
+      {(editing || creating) && (
         <ArtisanEditor
-          key={editing.id}
-          artisan={editing}
-          open={!!editing}
-          onClose={() => setEditingId(null)}
+          key={editing?.id ?? 'new'}
+          artisan={editing ?? { id: '', ...NEW_ARTISAN }}
+          isNew={creating}
+          open={!!(editing || creating)}
+          onClose={() => {
+            setEditingId(null);
+            setCreating(false);
+          }}
           onSave={(fields) => {
-            updateArtisan(editing.id, fields);
+            if (creating) {
+              const { id, ...rest } = fields as Artisan;
+              void id;
+              const created = { ...rest, avatar: rest.avatar || rest.photo };
+              createArtisan(created);
+            } else if (editing) {
+              updateArtisan(editing.id, fields);
+            }
             setEditingId(null);
+            setCreating(false);
           }}
-          onReset={() => {
-            resetArtisan(editing.id);
-            setEditingId(null);
-          }}
-          isOverridden={artisanOverrideIds.includes(editing.id)}
+          onReset={
+            editing
+              ? () => {
+                  resetArtisan(editing.id);
+                  setEditingId(null);
+                }
+              : undefined
+          }
+          onDelete={
+            editing
+              ? () => {
+                  deleteArtisan(editing.id);
+                  setEditingId(null);
+                }
+              : undefined
+          }
+          isOverridden={editing ? artisanOverrideIds.includes(editing.id) : false}
         />
       )}
     </div>
@@ -163,22 +220,27 @@ export function ArtisansSection() {
 
 function ArtisanEditor({
   artisan,
+  isNew,
   open,
   onClose,
   onSave,
   onReset,
+  onDelete,
   isOverridden,
 }: {
   artisan: Artisan;
+  isNew: boolean;
   open: boolean;
   onClose: () => void;
   onSave: (fields: Partial<Artisan>) => void;
-  onReset: () => void;
+  onReset?: () => void;
+  onDelete?: () => void;
   isOverridden: boolean;
 }) {
   const T = useTheme();
   const { lang } = useI18n();
   const [draft, setDraft] = useState<Artisan>(artisan);
+  const canSave = !!draft.name.trim() && draft.cats.length > 0;
   const set = <K extends keyof Artisan>(k: K, v: Artisan[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
@@ -200,23 +262,61 @@ function ArtisanEditor({
     <SidePanel
       open={open}
       onClose={onClose}
-      title={draft.name}
-      subtitle={`${lang === 'es' ? 'Artista' : 'Artisan'} · ${artisan.id}`}
+      title={
+        isNew
+          ? lang === 'es'
+            ? 'Nuevo artista'
+            : 'New artisan'
+          : draft.name || (lang === 'es' ? 'Artista' : 'Artisan')
+      }
+      subtitle={
+        isNew
+          ? lang === 'es'
+            ? 'Nuevo'
+            : 'New'
+          : `${lang === 'es' ? 'Artista' : 'Artisan'} · ${artisan.id}`
+      }
       footer={
         <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}>
-          {isOverridden ? (
-            <GhostBtn onClick={onReset}>
-              {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
-            </GhostBtn>
-          ) : (
-            <span />
-          )}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            {!isNew && onDelete && (
+              <button
+                onClick={onDelete}
+                className="dsr-press"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '6px 0',
+                  cursor: 'pointer',
+                  color: T.rouge,
+                  fontFamily: T.sans,
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                  fontWeight: 500,
+                }}
+              >
+                {lang === 'es' ? 'Eliminar' : 'Delete'}
+              </button>
+            )}
+            {!isNew && isOverridden && onReset && (
+              <GhostBtn onClick={onReset}>
+                {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
+              </GhostBtn>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <Btn primary={false} onClick={onClose} fullWidth={false}>
               {lang === 'es' ? 'Cancelar' : 'Cancel'}
             </Btn>
-            <Btn onClick={() => onSave(draft)} fullWidth={false}>
-              {lang === 'es' ? 'Guardar' : 'Save'}
+            <Btn onClick={() => onSave(draft)} fullWidth={false} disabled={!canSave}>
+              {isNew
+                ? lang === 'es'
+                  ? 'Crear'
+                  : 'Create'
+                : lang === 'es'
+                  ? 'Guardar'
+                  : 'Save'}
             </Btn>
           </div>
         </div>

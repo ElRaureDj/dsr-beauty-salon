@@ -46,7 +46,9 @@ export function ProductDetail({ id }: { id: string }) {
     ...(p.video ? [{ video: p.video, poster: p.photo }] : []),
     ...p.photos.map((src) => ({ src })),
   ];
-  const cur = slides[tab];
+  // Fallback para productos sin medios (creados desde admin sin photos extra).
+  const safeSlides: Slide[] = slides.length > 0 ? slides : [{ src: p.photo || '' }];
+  const cur = safeSlides[Math.min(tab, safeSlides.length - 1)];
 
   return (
     <Screen padTop={0} padBottom={130}>
@@ -108,7 +110,7 @@ export function ProductDetail({ id }: { id: string }) {
             gap: 6,
           }}
         >
-          {slides.map((_, i) => (
+          {safeSlides.map((_, i) => (
             <button
               key={i}
               onClick={() => setTab(i)}
@@ -137,7 +139,7 @@ export function ProductDetail({ id }: { id: string }) {
           overflowX: 'auto',
         }}
       >
-        {slides.map((s, i) => (
+        {safeSlides.map((s, i) => (
           <button
             key={i}
             onClick={() => setTab(i)}
