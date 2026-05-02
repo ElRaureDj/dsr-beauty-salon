@@ -193,6 +193,13 @@ export interface I18nStrings {
   lowStock: string;
   outOfStock: string;
   outOfStockShort: string;
+  adminGateTitle: string;
+  adminGateSub: string;
+  adminGatePinLabel: string;
+  adminGateHint: string;
+  adminGateInvalid: string;
+  adminGateEnter: string;
+  adminLock: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -389,6 +396,13 @@ export const I18N: Record<Lang, I18nStrings> = {
     lowStock: 'Quedan {n} unidades',
     outOfStock: 'Agotado',
     outOfStockShort: 'No disponible',
+    adminGateTitle: 'Acceso administrador',
+    adminGateSub: 'Este panel está reservado al equipo del salón. Ingresa el código de acceso para gestionar el catálogo, citas y operación.',
+    adminGatePinLabel: 'Código de acceso',
+    adminGateHint: 'Demo PIN ·',
+    adminGateInvalid: 'Código incorrecto',
+    adminGateEnter: 'Entrar al panel',
+    adminLock: 'Cerrar panel',
   },
   en: {
     welcome: 'Welcome',
@@ -581,5 +595,12 @@ export const I18N: Record<Lang, I18nStrings> = {
     lowStock: 'Only {n} left',
     outOfStock: 'Out of stock',
     outOfStockShort: 'Unavailable',
+    adminGateTitle: 'Admin access',
+    adminGateSub: 'This panel is for the salon team only. Enter the access code to manage catalog, appointments and operations.',
+    adminGatePinLabel: 'Access code',
+    adminGateHint: 'Demo PIN ·',
+    adminGateInvalid: 'Wrong code',
+    adminGateEnter: 'Enter panel',
+    adminLock: 'Lock panel',
   },
 };

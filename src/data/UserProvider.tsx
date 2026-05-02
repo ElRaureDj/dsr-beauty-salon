@@ -15,6 +15,10 @@ import {
 
 const AVATAR_KEY = 'dsr-user-avatar-v1';
 const AUTH_KEY = 'dsr-user-auth-v1';
+const ADMIN_UNLOCKED_KEY = 'dsr-admin-unlocked-v1';
+
+/** PIN demo del modo administrador. En producción vendría de un rol/JWT. */
+export const ADMIN_DEMO_PIN = '2486';
 
 export type AuthProvider =
   | 'apple'
@@ -41,6 +45,12 @@ interface UserValue {
   signIn: (provider: AuthProvider) => void;
   /** Cierra sesión. Limpia provider; el avatar se mantiene como preferencia. */
   signOut: () => void;
+  /** True cuando se desbloqueó el modo administrador con el PIN demo. */
+  adminUnlocked: boolean;
+  /** Intenta desbloquear el admin con un PIN. */
+  unlockAdmin: (pin: string) => boolean;
+  /** Cierra el modo admin (lo vuelve a pedir). */
+  lockAdmin: () => void;
 }
 
 const UserCtx = createContext<UserValue>({
@@ -50,6 +60,9 @@ const UserCtx = createContext<UserValue>({
   provider: null,
   signIn: () => {},
   signOut: () => {},
+  adminUnlocked: false,
+  unlockAdmin: () => false,
+  lockAdmin: () => {},
 });
 
 function loadAvatar(): string | null {
@@ -57,6 +70,14 @@ function loadAvatar(): string | null {
     return window.localStorage.getItem(AVATAR_KEY);
   } catch {
     return null;
+  }
+}
+
+function loadAdminUnlocked(): boolean {
+  try {
+    return window.localStorage.getItem(ADMIN_UNLOCKED_KEY) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -82,6 +103,7 @@ function loadAuth(): AuthState {
 export function UserProvider({ children }: { children: ReactNode }) {
   const [avatar, setAvatarState] = useState<string | null>(loadAvatar);
   const [auth, setAuth] = useState<AuthState>(loadAuth);
+  const [adminUnlocked, setAdminUnlocked] = useState<boolean>(loadAdminUnlocked);
 
   useEffect(() => {
     try {
@@ -100,6 +122,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, [auth]);
 
+  useEffect(() => {
+    try {
+      if (adminUnlocked) window.localStorage.setItem(ADMIN_UNLOCKED_KEY, '1');
+      else window.localStorage.removeItem(ADMIN_UNLOCKED_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, [adminUnlocked]);
+
   const setAvatar = useCallback((next: string | null) => {
     setAvatarState(next);
   }, []);
@@ -110,7 +141,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     setAuth({ signedIn: false, provider: null });
+    // Sign out también cierra el modo admin: la siguiente sesión vuelve a pedirlo.
+    setAdminUnlocked(false);
   }, []);
+
+  const unlockAdmin = useCallback((pin: string): boolean => {
+    if (pin.trim() === ADMIN_DEMO_PIN) {
+      setAdminUnlocked(true);
+      return true;
+    }
+    return false;
+  }, []);
+
+  const lockAdmin = useCallback(() => setAdminUnlocked(false), []);
 
   const value = useMemo<UserValue>(
     () => ({
@@ -120,8 +163,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
       provider: auth.provider,
       signIn,
       signOut,
+      adminUnlocked,
+      unlockAdmin,
+      lockAdmin,
     }),
-    [avatar, setAvatar, auth.signedIn, auth.provider, signIn, signOut],
+    [
+      avatar,
+      setAvatar,
+      auth.signedIn,
+      auth.provider,
+      signIn,
+      signOut,
+      adminUnlocked,
+      unlockAdmin,
+      lockAdmin,
+    ],
   );
 
   return <UserCtx.Provider value={value}>{children}</UserCtx.Provider>;

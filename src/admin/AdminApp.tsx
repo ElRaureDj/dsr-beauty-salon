@@ -9,6 +9,8 @@ import { useI18n } from '../i18n/LangProvider';
 import { Body, Eyebrow, Ico, Icons, Tiny } from '../components/atoms';
 import { useRouter } from '../router/Router';
 import { useCatalog } from '../data/CatalogProvider';
+import { useUser } from '../data/UserProvider';
+import { AdminGate } from './AdminGate';
 import { VariantsSection } from './sections/VariantsSection';
 import { ProductsSection, ServicesSection } from './sections/CatalogList';
 import { ArtisansSection } from './sections/ArtisansSection';
@@ -90,9 +92,10 @@ function loadSection(): SectionId {
 
 export function AdminApp() {
   const T = useTheme();
-  const { lang } = useI18n();
+  const { lang, t } = useI18n();
   const { go } = useRouter();
   const { overriddenServiceIds } = useCatalog();
+  const { adminUnlocked, lockAdmin } = useUser();
   const [section, setSection] = useState<SectionId>(loadSection);
 
   useEffect(() => {
@@ -102,6 +105,10 @@ export function AdminApp() {
       /* ignore */
     }
   }, [section]);
+
+  // Gate: si el admin no está desbloqueado, mostrar el PIN screen.
+  // Después de todos los hooks para no romper Rules of Hooks.
+  if (!adminUnlocked) return <AdminGate />;
 
   // Group sections for sidebar rendering
   const groupedSections = (
@@ -229,13 +236,44 @@ export function AdminApp() {
           ))}
         </nav>
 
-        {/* Footer: back to customer app */}
+        {/* Footer: lock + back to customer app */}
         <div
           style={{
             padding: '16px 22px',
             borderTop: `1px solid ${T.line}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
           }}
         >
+          <button
+            onClick={() => {
+              lockAdmin();
+              go('home');
+            }}
+            className="dsr-press"
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: 'none',
+              padding: '8px 0',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              color: T.textMuted,
+              fontFamily: T.sans,
+              fontSize: 10,
+              letterSpacing: 1.2,
+              textTransform: 'uppercase',
+              fontWeight: 500,
+            }}
+          >
+            <Ico size={11} color={T.textMuted}>
+              {Icons.close}
+            </Ico>
+            {t('adminLock')}
+          </button>
           <button
             onClick={() => go('home')}
             className="dsr-press"
