@@ -24,6 +24,7 @@ import { GiftCardsSection } from './sections/GiftCardsSection';
 import { ReviewsSection } from './sections/ReviewsSection';
 import { ReportsSection } from './sections/ReportsSection';
 import { SettingsSection } from './sections/SettingsSection';
+import { AuditLogSection } from './sections/AuditLogSection';
 
 const SECTION_KEY = 'dsr-admin-section-v1';
 
@@ -41,7 +42,8 @@ type SectionId =
   | 'promotions'
   | 'reviews'
   | 'reports'
-  | 'settings';
+  | 'settings'
+  | 'audit';
 
 interface SectionDef {
   id: SectionId;
@@ -70,6 +72,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'reviews', group: 'misc', icon: Icons.star, label: { es: 'Reseñas', en: 'Reviews' } },
   { id: 'reports', group: 'misc', icon: Icons.chev, label: { es: 'Reportes', en: 'Reports' } },
   { id: 'settings', group: 'misc', icon: Icons.globe, label: { es: 'Configuración', en: 'Settings' } },
+  { id: 'audit', group: 'misc', icon: Icons.clock, label: { es: 'Audit log', en: 'Audit log' } },
 ];
 
 const GROUP_LABELS: Record<SectionDef['group'], { es: string; en: string }> = {
@@ -316,6 +319,8 @@ function SectionRouter({ id }: { id: SectionId }) {
       return <ReportsSection />;
     case 'settings':
       return <SettingsSection />;
+    case 'audit':
+      return <AuditLogSection />;
   }
 }
 

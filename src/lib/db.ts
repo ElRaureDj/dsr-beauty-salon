@@ -1679,6 +1679,56 @@ export async function fetchAllAppointmentsForAdmin(): Promise<
   });
 }
 
+// ---------- Audit Log (admin) ----------
+// Tabla en migration 0019. Triggers automáticos en salon_settings y
+// tier_rules. RLS admin-only para SELECT.
+
+export interface AuditLogEntry {
+  id: number;
+  actorUserId: string | null;
+  actorEmail: string | null;
+  action: 'insert' | 'update' | 'delete';
+  entityType: string;
+  entityId: string | null;
+  before: unknown;
+  after: unknown;
+  createdAt: string;
+}
+
+interface DbAuditLog {
+  id: number;
+  actor_user_id: string | null;
+  actor_email: string | null;
+  action: 'insert' | 'update' | 'delete';
+  entity_type: string;
+  entity_id: string | null;
+  before: unknown;
+  after: unknown;
+  created_at: string;
+}
+
+export async function fetchAuditLog(limit = 100): Promise<AuditLogEntry[]> {
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select(
+      'id, actor_user_id, actor_email, action, entity_type, entity_id, before, after, created_at',
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as DbAuditLog[]).map((r) => ({
+    id: r.id,
+    actorUserId: r.actor_user_id,
+    actorEmail: r.actor_email,
+    action: r.action,
+    entityType: r.entity_type,
+    entityId: r.entity_id,
+    before: r.before,
+    after: r.after,
+    createdAt: r.created_at,
+  }));
+}
+
 // ---------- Gift Cards (real) ----------
 // Tabla en migration 0018. Reemplaza el mock de src/data/giftcards.ts
 // para gift cards realmente compradas. Las del mock siguen viviendo
