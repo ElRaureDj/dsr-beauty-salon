@@ -321,7 +321,7 @@ export function Addresses() {
                 </option>
                 {US_STATES.map((s) => (
                   <option key={s.code} value={s.code}>
-                    {s.code} — {s.name}
+                    {s.code} - {s.name}
                   </option>
                 ))}
               </select>
@@ -339,7 +339,9 @@ export function Addresses() {
           <Field label={t('addressFormPhone')} T={T}>
             <Input
               value={draft.phone}
-              onChange={(v) => setDraft((d) => ({ ...d, phone: v }))}
+              onChange={(v) =>
+                setDraft((d) => ({ ...d, phone: formatUsPhone(v) }))
+              }
               T={T}
               type="tel"
             />
@@ -597,6 +599,19 @@ function displayLabel(
   if (stored === 'home') return t('addressLabelHome') as string;
   if (stored === 'office') return t('addressLabelOffice') as string;
   return stored || (t('addressLabelCustom') as string);
+}
+
+/**
+ * Formatea un teléfono al estándar US: (XXX) XXX-XXXX. Acepta cualquier
+ * input (con/sin formato) y lo normaliza a sus dígitos antes de re-aplicar
+ * el formato. Limita a 10 dígitos (sin código de país).
+ */
+function formatUsPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  if (digits.length === 0) return '';
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
 function Field({
