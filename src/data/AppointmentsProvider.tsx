@@ -113,7 +113,7 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
         queryClient.setQueryData<Appointment[]>(
           ['my-appointments', userId],
           (prev) =>
-            prev?.map((a) => (a.id === id ? { ...a, status: 'past' } : a)),
+            prev?.map((a) => (a.id === id ? { ...a, status: 'cancelled' } : a)),
         );
         void cancelAppointmentRpc(id)
           .then(() =>
@@ -130,9 +130,9 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
           });
         return;
       }
-      // Guest: solo state local (cancelar = marcar past).
+      // Guest: solo state local (cancelar = marcar cancelled).
       setGuestAppts((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: 'past' } : a)),
+        prev.map((a) => (a.id === id ? { ...a, status: 'cancelled' } : a)),
       );
     },
     [userId, queryClient],

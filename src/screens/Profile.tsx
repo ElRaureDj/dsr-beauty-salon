@@ -37,7 +37,11 @@ export function Profile() {
   const showAvatarImg = !!avatar && !avatarFailed;
   const tier = tierFor(user.points);
   const upcoming = appointments.filter((a) => a.status === 'confirmed');
-  const past = appointments.filter((a) => a.status === 'past');
+  // 'past' = realizadas; 'cancelled' = canceladas. Las mezclamos en la
+  // sección "Pasadas" pero con badge distinto en cada row.
+  const past = appointments.filter(
+    (a) => a.status === 'past' || a.status === 'cancelled',
+  );
 
   const handleResetOnboarding = () => {
     try {
@@ -325,9 +329,17 @@ export function Profile() {
                     </Tiny>
                   </div>
                   <Tiny
-                    style={{ color: T.gold, fontSize: 10, letterSpacing: 1.2 }}
+                    style={{
+                      color: apt.status === 'cancelled' ? T.rouge : T.gold,
+                      fontSize: 10,
+                      letterSpacing: 1.2,
+                    }}
                   >
-                    {t('rebook').toUpperCase()}
+                    {apt.status === 'cancelled'
+                      ? lang === 'es'
+                        ? 'CANCELADA'
+                        : 'CANCELLED'
+                      : t('rebook').toUpperCase()}
                   </Tiny>
                 </div>
               );

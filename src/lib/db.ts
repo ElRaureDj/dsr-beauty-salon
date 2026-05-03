@@ -1534,10 +1534,10 @@ const APPOINTMENT_COLS =
 function mapAppointment(row: DbAppointment): Appointment {
   const today = new Date().toISOString().slice(0, 10);
   const isPastByDate = row.date < today;
-  const status: 'confirmed' | 'past' =
-    row.status === 'completed' || (row.status === 'confirmed' && isPastByDate)
-      ? 'past'
-      : 'confirmed';
+  let status: 'confirmed' | 'past' | 'cancelled';
+  if (row.status === 'cancelled') status = 'cancelled';
+  else if (row.status === 'completed' || (row.status === 'confirmed' && isPastByDate)) status = 'past';
+  else status = 'confirmed';
   return {
     id: row.id,
     date: row.date,
@@ -1557,12 +1557,12 @@ function mapAppointment(row: DbAppointment): Appointment {
   };
 }
 
-/** Citas del user actual. Excluye cancelled — el customer no las ve. */
+/** Citas del user actual. Incluye canceladas — el customer las ve con
+ *  badge distinto para entender qué pasó (sobre todo si el admin canceló). */
 export async function fetchMyAppointments(): Promise<Appointment[]> {
   const { data, error } = await supabase
     .from('appointments')
     .select(APPOINTMENT_COLS)
-    .neq('status', 'cancelled')
     .order('date', { ascending: false });
   if (error) throw error;
   return ((data ?? []) as DbAppointment[]).map(mapAppointment);

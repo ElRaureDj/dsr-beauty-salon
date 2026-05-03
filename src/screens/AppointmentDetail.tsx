@@ -76,6 +76,9 @@ export function AppointmentDetail({ id }: Props) {
     .map(getService)
     .filter((s): s is NonNullable<ReturnType<typeof getService>> => !!s);
   const isPast = appt.status === 'past';
+  const isCancelled = appt.status === 'cancelled';
+  // Citas terminales (past o cancelled) no permiten cancelar/reagendar.
+  const isTerminal = isPast || isCancelled;
 
   const dateLabel = new Date(appt.date).toLocaleDateString(
     lang === 'es' ? 'es-ES' : 'en-US',
@@ -115,7 +118,7 @@ export function AppointmentDetail({ id }: Props) {
   }, [userId, reviewableServiceId, appt.artisan, getReviews]);
 
   return (
-    <Screen padTop={0} padBottom={isPast ? 40 : 140}>
+    <Screen padTop={0} padBottom={isTerminal ? 40 : 140}>
       <HeaderBar onBack={() => go('home')} title={t('appointmentTitle')} />
 
       <div style={{ padding: '108px 22px 0' }}>
@@ -123,7 +126,7 @@ export function AppointmentDetail({ id }: Props) {
         <H1 style={{ fontSize: 32, marginTop: 6 }}>
           {t('appointmentTitle')}
         </H1>
-        {isPast && (
+        {isTerminal && (
           <div
             style={{
               marginTop: 12,
@@ -132,7 +135,7 @@ export function AppointmentDetail({ id }: Props) {
               gap: 6,
               padding: '4px 10px',
               background: T.surface,
-              boxShadow: `inset 0 0 0 1px ${T.lineStrong}`,
+              boxShadow: `inset 0 0 0 1px ${isCancelled ? `${T.rouge}55` : T.lineStrong}`,
             }}
           >
             <span
@@ -140,17 +143,21 @@ export function AppointmentDetail({ id }: Props) {
                 width: 5,
                 height: 5,
                 borderRadius: 999,
-                background: T.textFaint,
+                background: isCancelled ? T.rouge : T.textFaint,
               }}
             />
             <Tiny
               style={{
-                color: T.textMuted,
+                color: isCancelled ? T.rouge : T.textMuted,
                 letterSpacing: 1.4,
                 fontSize: 10,
               }}
             >
-              {t('appointmentPastBadge')}
+              {isCancelled
+                ? lang === 'es'
+                  ? 'CANCELADA'
+                  : 'CANCELLED'
+                : t('appointmentPastBadge')}
             </Tiny>
           </div>
         )}
@@ -361,8 +368,8 @@ export function AppointmentDetail({ id }: Props) {
         />
       )}
 
-      {/* Sticky CTAs — solo cuando la cita es próxima (no past). */}
-      {!isPast && (
+      {/* Sticky CTAs — solo cuando la cita está activa (ni pasada ni cancelada). */}
+      {!isTerminal && (
         <div
           style={{
             position: 'absolute',

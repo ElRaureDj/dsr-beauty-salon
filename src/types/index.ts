@@ -134,13 +134,13 @@ export interface Appointment {
   time: string; // HH:MM
   services: string[]; // service ids
   artisan: string; // artisan id
-  /** Status simplificado para customer UI. Mapeado en db.ts:
+  /** Status visible al customer. Mapeado en db.ts:
    *  - DB 'confirmed' + date >= today → 'confirmed'
    *  - DB 'confirmed' + date < today  → 'past' (no marcada como completed aún)
    *  - DB 'completed'                 → 'past'
-   *  - DB 'cancelled'                 → ocultada del fetch customer
+   *  - DB 'cancelled'                 → 'cancelled' (visible con badge distinto)
    */
-  status: 'confirmed' | 'past';
+  status: 'confirmed' | 'past' | 'cancelled';
   total: number;
   duration: number;
   notes_es?: string;
