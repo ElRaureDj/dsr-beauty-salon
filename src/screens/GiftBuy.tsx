@@ -16,8 +16,11 @@ import {
 import { GiftCardVisual } from '../components/GiftCardVisual';
 import { GIFTCARD_AMOUNTS } from '../data/giftcards';
 import { useCatalog } from '../data/CatalogProvider';
+import { useUser } from '../data/UserProvider';
 import { useUserData } from '../data/useUserData';
 import { useRouter } from '../router/Router';
+import { createGiftCard } from '../lib/db';
+import { useToast } from '../components/atoms';
 
 interface GiftBuyProps {
   initial?: { design?: string };
@@ -104,6 +107,8 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getGiftCardDesigns, getGiftCardDesign } = useCatalog();
+  const { session } = useUser();
+  const { show: showToast } = useToast();
   const user = useUserData();
 
   const [step, setStep] = useState(0);
@@ -603,7 +608,42 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
           </div>
           <button
             className="dsr-press"
-            onClick={() => setDone(true)}
+            onClick={async () => {
+              // El cobro real con Apple Pay sigue mock (Stripe en hold).
+              // Pero la card sí se persiste si hay sesión, así el destinatario
+              // puede canjearla con el código y queda en "Mis gift cards".
+              if (session?.user) {
+                try {
+                  await createGiftCard({
+                    designId,
+                    amount: finalAmount,
+                    senderUserId: session.user.id,
+                    senderName: from || user.fullName,
+                    recipientName: recipient || (lang === 'es' ? 'Para ti' : 'For you'),
+                    recipientEmail: delivery === 'email' ? contact : undefined,
+                    recipientPhone: delivery === 'whatsapp' ? contact : undefined,
+                    messageEs: lang === 'es' ? message : undefined,
+                    messageEn: lang === 'en' ? message : undefined,
+                    deliveryMethod: delivery,
+                    deliveryDate:
+                      delivery === 'schedule' && scheduleDate ? scheduleDate : undefined,
+                  });
+                } catch (err) {
+                  // eslint-disable-next-line no-console
+                  console.error('[gift] createGiftCard failed:', err);
+                  showToast({
+                    kind: 'error',
+                    message:
+                      lang === 'es'
+                        ? 'No pudimos guardar la gift card'
+                        : 'Could not save the gift card',
+                    detail: err instanceof Error ? err.message : String(err),
+                  });
+                  return;
+                }
+              }
+              setDone(true);
+            }}
             style={{
               width: '100%',
               height: 52,

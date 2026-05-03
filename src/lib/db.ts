@@ -1679,6 +1679,145 @@ export async function fetchAllAppointmentsForAdmin(): Promise<
   });
 }
 
+// ---------- Gift Cards (real) ----------
+// Tabla en migration 0018. Reemplaza el mock de src/data/giftcards.ts
+// para gift cards realmente compradas. Las del mock siguen viviendo
+// como diseño / catálogo (los GiftCardDesign son separados).
+
+export interface GiftCardRow {
+  id: string;
+  code: string;
+  designId: string;
+  amountInitial: number;
+  balance: number;
+  senderUserId: string | null;
+  senderName: string | null;
+  recipientEmail: string | null;
+  recipientPhone: string | null;
+  recipientName: string;
+  message_es: string | null;
+  message_en: string | null;
+  deliveryMethod: 'email' | 'whatsapp' | 'schedule';
+  deliveryDate: string | null;
+  redeemedByUserId: string | null;
+  status: 'active' | 'depleted' | 'expired' | 'cancelled';
+  createdAt: string;
+}
+
+interface DbGiftCard {
+  id: string;
+  code: string;
+  design_id: string;
+  amount_initial: number;
+  balance: number;
+  sender_user_id: string | null;
+  sender_name: string | null;
+  recipient_email: string | null;
+  recipient_phone: string | null;
+  recipient_name: string;
+  message_es: string | null;
+  message_en: string | null;
+  delivery_method: 'email' | 'whatsapp' | 'schedule';
+  delivery_date: string | null;
+  redeemed_by_user_id: string | null;
+  status: 'active' | 'depleted' | 'expired' | 'cancelled';
+  created_at: string;
+}
+
+const GIFT_CARD_COLS =
+  'id, code, design_id, amount_initial, balance, sender_user_id, sender_name, recipient_email, recipient_phone, recipient_name, message_es, message_en, delivery_method, delivery_date, redeemed_by_user_id, status, created_at';
+
+function mapGiftCard(row: DbGiftCard): GiftCardRow {
+  return {
+    id: row.id,
+    code: row.code,
+    designId: row.design_id,
+    amountInitial: Number(row.amount_initial),
+    balance: Number(row.balance),
+    senderUserId: row.sender_user_id,
+    senderName: row.sender_name,
+    recipientEmail: row.recipient_email,
+    recipientPhone: row.recipient_phone,
+    recipientName: row.recipient_name,
+    message_es: row.message_es,
+    message_en: row.message_en,
+    deliveryMethod: row.delivery_method,
+    deliveryDate: row.delivery_date,
+    redeemedByUserId: row.redeemed_by_user_id,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+/** Genera un código DSR-XXXX-XXXX (8 chars random). */
+function newGiftCardCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin chars confusos
+  const pick = (n: number) =>
+    Array.from({ length: n }, () =>
+      chars.charAt(Math.floor(Math.random() * chars.length)),
+    ).join('');
+  return `DSR-${pick(4)}-${pick(4)}`;
+}
+
+export interface CreateGiftCardInput {
+  designId: string;
+  amount: number;
+  senderUserId: string;
+  senderName: string;
+  recipientName: string;
+  recipientEmail?: string;
+  recipientPhone?: string;
+  messageEs?: string;
+  messageEn?: string;
+  deliveryMethod: 'email' | 'whatsapp' | 'schedule';
+  deliveryDate?: string;
+}
+
+export async function createGiftCard(
+  input: CreateGiftCardInput,
+): Promise<GiftCardRow> {
+  const code = newGiftCardCode();
+  const { data, error } = await supabase
+    .from('gift_cards')
+    .insert({
+      code,
+      design_id: input.designId,
+      amount_initial: input.amount,
+      balance: input.amount,
+      sender_user_id: input.senderUserId,
+      sender_name: input.senderName,
+      recipient_name: input.recipientName,
+      recipient_email: input.recipientEmail ?? null,
+      recipient_phone: input.recipientPhone ?? null,
+      message_es: input.messageEs ?? null,
+      message_en: input.messageEn ?? null,
+      delivery_method: input.deliveryMethod,
+      delivery_date: input.deliveryDate ?? null,
+    })
+    .select(GIFT_CARD_COLS)
+    .single();
+  if (error) throw error;
+  return mapGiftCard(data as DbGiftCard);
+}
+
+/** Cards enviadas por el user actual. */
+export async function fetchMySentGiftCards(): Promise<GiftCardRow[]> {
+  const { data, error } = await supabase
+    .from('gift_cards')
+    .select(GIFT_CARD_COLS)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  // RLS filtra; aquí solo mapeamos.
+  return ((data ?? []) as DbGiftCard[]).map(mapGiftCard);
+}
+
+/** Vincula una card al user actual usando el code. RPC en 0018. */
+export async function redeemGiftCard(code: string): Promise<string> {
+  const { data, error } = await supabase.rpc('redeem_gift_card', { p_code: code });
+  if (error) throw error;
+  return String(data ?? '');
+}
+
 // ---------- Referrals ----------
 // Tabla + helpers en migration 0017.
 
