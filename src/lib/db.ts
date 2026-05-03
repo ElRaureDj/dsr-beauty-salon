@@ -1608,13 +1608,17 @@ export async function fetchTakenSlots(
     p_to: toDate,
   });
   if (error) throw error;
-  return ((data ?? []) as Array<{ date: string; time: string; duration: number }>).map(
-    (row) => ({
-      date: row.date,
-      time: row.time.slice(0, 5),
-      duration: row.duration,
-    }),
-  );
+  // La RPC devuelve slot_date/slot_time/slot_duration porque date/time son
+  // palabras reservadas en RETURNS TABLE de Postgres (ver 0014).
+  return ((data ?? []) as Array<{
+    slot_date: string;
+    slot_time: string;
+    slot_duration: number;
+  }>).map((row) => ({
+    date: row.slot_date,
+    time: row.slot_time.slice(0, 5),
+    duration: row.slot_duration,
+  }));
 }
 
 // Admin: vista cross-user de appointments. Mantiene el rawStatus para que

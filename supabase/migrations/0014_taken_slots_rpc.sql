@@ -9,26 +9,30 @@
 -- 'completed' y 'cancelled' no se cuentan — el primero ya pasó, el segundo
 -- liberó el slot.
 
+-- Nota: `date` y `time` son palabras reservadas en RETURNS TABLE de
+-- Postgres (provoca syntax error). Renombramos las columnas de salida a
+-- `slot_*` y el cliente las mapea de vuelta al shape TakenSlot.
+
 create or replace function taken_slots(
   p_artisan_id text,
   p_from date,
   p_to date
 )
 returns table (
-  date date,
-  time text,
-  duration int
+  slot_date date,
+  slot_time text,
+  slot_duration int
 )
 language sql
 security definer
 set search_path = public
 as $$
-  select pb.date, pb.time, pb.duration
+  select pb.date as slot_date, pb.time as slot_time, pb.duration as slot_duration
     from pending_bookings pb
    where pb.artisan_id = p_artisan_id
      and pb.date between p_from and p_to
   union all
-  select a.date, a.time, a.duration
+  select a.date as slot_date, a.time as slot_time, a.duration as slot_duration
     from appointments a
    where a.artisan_id = p_artisan_id
      and a.status = 'confirmed'
