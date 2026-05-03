@@ -16,6 +16,7 @@ import type {
   PendingBooking,
   Perk,
   Product,
+  Promo,
   Service,
   Tier,
 } from '../types';
@@ -222,14 +223,90 @@ function mapCombo(row: DbCombo): Combo {
   };
 }
 
+const COMBO_COLS =
+  'id, name_es, name_en, service_ids, discount_pct, description_es, description_en, popular';
+
 export async function fetchCombos(): Promise<Combo[]> {
-  const { data, error } = await supabase
-    .from('combos')
-    .select(
-      'id, name_es, name_en, service_ids, discount_pct, description_es, description_en, popular',
-    );
+  const { data, error } = await supabase.from('combos').select(COMBO_COLS);
   if (error) throw error;
   return (data as DbCombo[]).map(mapCombo);
+}
+
+function comboToDb(combo: Omit<Combo, 'id'>): Omit<DbCombo, 'id'> {
+  return {
+    name_es: combo.name_es,
+    name_en: combo.name_en,
+    service_ids: combo.serviceIds,
+    discount_pct: combo.discountPct,
+    description_es: combo.description_es ?? null,
+    description_en: combo.description_en ?? null,
+    popular: combo.popular ?? false,
+  };
+}
+
+/**
+ * Crea un combo. Genera id manualmente (la tabla combos.id es text PK,
+ * no UUID — el frontend ya tenía generador `cmb-...` que mantenemos
+ * para consistencia con seeds).
+ */
+export async function createCombo(
+  combo: Combo,
+): Promise<Combo> {
+  const { data, error } = await supabase
+    .from('combos')
+    .insert({ id: combo.id, ...comboToDb(combo) })
+    .select(COMBO_COLS)
+    .single();
+  if (error) throw error;
+  return mapCombo(data as DbCombo);
+}
+
+export async function updateCombo(
+  id: string,
+  fields: Partial<Omit<Combo, 'id'>>,
+): Promise<Combo> {
+  const dbUpdates: Partial<Omit<DbCombo, 'id'>> = {};
+  if (fields.name_es !== undefined) dbUpdates.name_es = fields.name_es;
+  if (fields.name_en !== undefined) dbUpdates.name_en = fields.name_en;
+  if (fields.serviceIds !== undefined) dbUpdates.service_ids = fields.serviceIds;
+  if (fields.discountPct !== undefined) dbUpdates.discount_pct = fields.discountPct;
+  if (fields.description_es !== undefined)
+    dbUpdates.description_es = fields.description_es ?? null;
+  if (fields.description_en !== undefined)
+    dbUpdates.description_en = fields.description_en ?? null;
+  if (fields.popular !== undefined) dbUpdates.popular = fields.popular;
+
+  const { data, error } = await supabase
+    .from('combos')
+    .update(dbUpdates)
+    .eq('id', id)
+    .select(COMBO_COLS)
+    .single();
+  if (error) throw error;
+  return mapCombo(data as DbCombo);
+}
+
+export async function deleteCombo(id: string): Promise<void> {
+  const { error } = await supabase.from('combos').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/**
+ * Reset: borra todos los combos del admin y reinserta el seed inicial.
+ * Útil para restaurar el demo durante desarrollo. La función es admin-only
+ * vía RLS (delete + insert sobre combos).
+ */
+export async function resetCombosToSeed(seed: Combo[]): Promise<void> {
+  // Delete all (RLS bloquea a non-admins).
+  const { error: delErr } = await supabase
+    .from('combos')
+    .delete()
+    .neq('id', '__never_matches__');
+  if (delErr) throw delErr;
+  if (seed.length === 0) return;
+  const rows = seed.map((c) => ({ id: c.id, ...comboToDb(c) }));
+  const { error: insErr } = await supabase.from('combos').insert(rows);
+  if (insErr) throw insErr;
 }
 
 // ---------- Nail Looks ----------
@@ -511,6 +588,105 @@ export async function updateAddress(
 
 export async function deleteAddress(id: string): Promise<void> {
   const { error } = await supabase.from('addresses').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Promos ----------
+
+interface DbPromo {
+  id: string;
+  code: string;
+  type: 'pct' | 'fixed';
+  value: number;
+  description_es: string | null;
+  description_en: string | null;
+  valid_until: string | null;
+  max_uses: number | null;
+  used_count: number;
+  active: boolean;
+}
+
+const PROMO_COLS =
+  'id, code, type, value, description_es, description_en, valid_until, max_uses, used_count, active';
+
+function mapPromo(row: DbPromo): Promo {
+  return {
+    id: row.id,
+    code: row.code,
+    type: row.type,
+    value: Number(row.value),
+    description_es: row.description_es ?? undefined,
+    description_en: row.description_en ?? undefined,
+    validUntil: row.valid_until ?? undefined,
+    maxUses: row.max_uses ?? undefined,
+    usedCount: row.used_count,
+    active: row.active,
+  };
+}
+
+function promoToDb(p: Omit<Promo, 'id'>): Omit<DbPromo, 'id'> {
+  return {
+    code: p.code.toUpperCase().trim(),
+    type: p.type,
+    value: p.value,
+    description_es: p.description_es ?? null,
+    description_en: p.description_en ?? null,
+    valid_until: p.validUntil ?? null,
+    max_uses: p.maxUses ?? null,
+    used_count: p.usedCount,
+    active: p.active,
+  };
+}
+
+export async function fetchPromos(): Promise<Promo[]> {
+  const { data, error } = await supabase
+    .from('promos')
+    .select(PROMO_COLS)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as DbPromo[]).map(mapPromo);
+}
+
+export async function createPromo(promo: Promo): Promise<Promo> {
+  const { data, error } = await supabase
+    .from('promos')
+    .insert({ id: promo.id, ...promoToDb(promo) })
+    .select(PROMO_COLS)
+    .single();
+  if (error) throw error;
+  return mapPromo(data as DbPromo);
+}
+
+export async function updatePromo(
+  id: string,
+  fields: Partial<Omit<Promo, 'id'>>,
+): Promise<Promo> {
+  const dbUpdates: Partial<Omit<DbPromo, 'id'>> = {};
+  if (fields.code !== undefined) dbUpdates.code = fields.code.toUpperCase().trim();
+  if (fields.type !== undefined) dbUpdates.type = fields.type;
+  if (fields.value !== undefined) dbUpdates.value = fields.value;
+  if (fields.description_es !== undefined)
+    dbUpdates.description_es = fields.description_es ?? null;
+  if (fields.description_en !== undefined)
+    dbUpdates.description_en = fields.description_en ?? null;
+  if (fields.validUntil !== undefined)
+    dbUpdates.valid_until = fields.validUntil ?? null;
+  if (fields.maxUses !== undefined) dbUpdates.max_uses = fields.maxUses ?? null;
+  if (fields.usedCount !== undefined) dbUpdates.used_count = fields.usedCount;
+  if (fields.active !== undefined) dbUpdates.active = fields.active;
+
+  const { data, error } = await supabase
+    .from('promos')
+    .update(dbUpdates)
+    .eq('id', id)
+    .select(PROMO_COLS)
+    .single();
+  if (error) throw error;
+  return mapPromo(data as DbPromo);
+}
+
+export async function deletePromo(id: string): Promise<void> {
+  const { error } = await supabase.from('promos').delete().eq('id', id);
   if (error) throw error;
 }
 

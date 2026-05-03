@@ -13,16 +13,25 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ARTISANS, PRODUCTS, SERVICES } from './catalog';
 import { GIFTCARD_DESIGNS } from './giftcards';
 import { NAIL_LOOKS } from './nails';
 import {
+  createCombo as dbCreateCombo,
+  createPromo as dbCreatePromo,
+  deleteCombo as dbDeleteCombo,
+  deletePromo as dbDeletePromo,
   fetchArtisans,
+  fetchCombos,
   fetchGiftCardDesigns,
   fetchNailLooks,
   fetchProducts,
+  fetchPromos,
   fetchServices,
+  resetCombosToSeed,
+  updateCombo as dbUpdateCombo,
+  updatePromo as dbUpdatePromo,
 } from '../lib/db';
 import {
   SERVICE_VARIANTS,
@@ -64,9 +73,7 @@ const CREATED_ARTISANS_KEY = 'dsr-admin-created-artisans-v1';
 const DELETED_PRODUCTS_KEY = 'dsr-admin-deleted-products-v1';
 const DELETED_SERVICES_KEY = 'dsr-admin-deleted-services-v1';
 const DELETED_ARTISANS_KEY = 'dsr-admin-deleted-artisans-v1';
-const COMBOS_KEY = 'dsr-admin-combos-v1';
 const STOCKS_KEY = 'dsr-admin-stocks-v1';
-const PROMOS_KEY = 'dsr-admin-promos-v1';
 const SCHEDULES_KEY = 'dsr-admin-schedules-v1';
 const TIER_RULES_KEY = 'dsr-admin-tier-rules-v1';
 const REVIEWS_KEY = 'dsr-admin-reviews-v1';
@@ -273,14 +280,8 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [deletedArtisanIds, setDeletedArtisanIds] = useState<string[]>(() =>
     loadJSON<string[]>(DELETED_ARTISANS_KEY, []),
   );
-  const [combos, setCombos] = useState<Combo[]>(() =>
-    loadJSON<Combo[]>(COMBOS_KEY, SEED_COMBOS),
-  );
   const [stocks, setStocks] = useState<Record<string, ProductStock>>(() =>
     loadJSON(STOCKS_KEY, SEED_PRODUCT_STOCKS),
-  );
-  const [promos, setPromos] = useState<Promo[]>(() =>
-    loadJSON<Promo[]>(PROMOS_KEY, SEED_PROMOS),
   );
   const [schedules, setSchedules] = useState<Record<string, ArtisanSchedule>>(() =>
     loadJSON(SCHEDULES_KEY, SEED_SCHEDULES),
@@ -331,6 +332,30 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     initialData: GIFTCARD_DESIGNS,
     initialDataUpdatedAt: 0,
   });
+  // Combos y promos: state hidratado desde DB. SEED_COMBOS / SEED_PROMOS
+  // como initialData para UI inmediata. Las mutations llaman a Supabase
+  // (RLS bloquea si !is_admin) y luego invalidan el query para refetch.
+  const queryClient = useQueryClient();
+  const { data: dbCombos = SEED_COMBOS } = useQuery({
+    queryKey: ['combos'],
+    queryFn: fetchCombos,
+    initialData: SEED_COMBOS,
+    initialDataUpdatedAt: 0,
+  });
+  const { data: dbPromos = SEED_PROMOS } = useQuery({
+    queryKey: ['promos'],
+    queryFn: fetchPromos,
+    initialData: SEED_PROMOS,
+    initialDataUpdatedAt: 0,
+  });
+  const invalidateCombos = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['combos'] }),
+    [queryClient],
+  );
+  const invalidatePromos = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['promos'] }),
+    [queryClient],
+  );
 
   useEffect(() => {
     try {
@@ -371,16 +396,8 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     try { window.localStorage.setItem(DELETED_ARTISANS_KEY, JSON.stringify(deletedArtisanIds)); } catch { /* ignore */ }
   }, [deletedArtisanIds]);
   useEffect(() => {
-    try {
-      window.localStorage.setItem(COMBOS_KEY, JSON.stringify(combos));
-    } catch { /* ignore */ }
-  }, [combos]);
-  useEffect(() => {
     try { window.localStorage.setItem(STOCKS_KEY, JSON.stringify(stocks)); } catch { /* ignore */ }
   }, [stocks]);
-  useEffect(() => {
-    try { window.localStorage.setItem(PROMOS_KEY, JSON.stringify(promos)); } catch { /* ignore */ }
-  }, [promos]);
   useEffect(() => {
     try { window.localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules)); } catch { /* ignore */ }
   }, [schedules]);
@@ -634,26 +651,73 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [dbGiftCardDesigns],
   );
 
-  const getCombos = useCallback((): Combo[] => combos, [combos]);
+  // Combos: leídos desde DB via useQuery (dbCombos arriba). Mutations
+  // optimistic local + dispatch async a Supabase + invalidate para
+  // refetch. Errores se loggean; el siguiente refetch normaliza.
+  const getCombos = useCallback((): Combo[] => dbCombos, [dbCombos]);
   const getCombo = useCallback(
-    (id: string): Combo | undefined => combos.find((c) => c.id === id),
-    [combos],
+    (id: string): Combo | undefined => dbCombos.find((c) => c.id === id),
+    [dbCombos],
   );
-  const createCombo = useCallback((combo: Omit<Combo, 'id'>) => {
-    const id = generateComboId();
-    setCombos((prev) => [...prev, { ...combo, id }]);
-    return id;
-  }, []);
+  const createCombo = useCallback(
+    (combo: Omit<Combo, 'id'>) => {
+      const id = generateComboId();
+      const full: Combo = { ...combo, id };
+      // Optimistic update del cache (TanStack).
+      queryClient.setQueryData<Combo[]>(['combos'], (prev) =>
+        prev ? [...prev, full] : [full],
+      );
+      void dbCreateCombo(full)
+        .then(() => invalidateCombos())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] createCombo failed:', err);
+          void invalidateCombos();
+        });
+      return id;
+    },
+    [queryClient, invalidateCombos],
+  );
   const updateCombo = useCallback(
-    (id: string, fields: Partial<Omit<Combo, 'id'>>) =>
-      setCombos((prev) => prev.map((c) => (c.id === id ? { ...c, ...fields } : c))),
-    [],
+    (id: string, fields: Partial<Omit<Combo, 'id'>>) => {
+      queryClient.setQueryData<Combo[]>(['combos'], (prev) =>
+        prev ? prev.map((c) => (c.id === id ? { ...c, ...fields } : c)) : prev,
+      );
+      void dbUpdateCombo(id, fields)
+        .then(() => invalidateCombos())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateCombo failed:', err);
+          void invalidateCombos();
+        });
+    },
+    [queryClient, invalidateCombos],
   );
   const deleteCombo = useCallback(
-    (id: string) => setCombos((prev) => prev.filter((c) => c.id !== id)),
-    [],
+    (id: string) => {
+      queryClient.setQueryData<Combo[]>(['combos'], (prev) =>
+        prev ? prev.filter((c) => c.id !== id) : prev,
+      );
+      void dbDeleteCombo(id)
+        .then(() => invalidateCombos())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] deleteCombo failed:', err);
+          void invalidateCombos();
+        });
+    },
+    [queryClient, invalidateCombos],
   );
-  const resetCombos = useCallback(() => setCombos(SEED_COMBOS), []);
+  const resetCombos = useCallback(() => {
+    queryClient.setQueryData<Combo[]>(['combos'], SEED_COMBOS);
+    void resetCombosToSeed(SEED_COMBOS)
+      .then(() => invalidateCombos())
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[catalog] resetCombos failed:', err);
+        void invalidateCombos();
+      });
+  }, [queryClient, invalidateCombos]);
 
   // Inventario
   const getStock = useCallback(
@@ -670,21 +734,56 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // Promociones
-  const getPromos = useCallback(() => promos, [promos]);
-  const createPromo = useCallback((p: Omit<Promo, 'id'>) => {
-    const id = generatePromoId();
-    setPromos((prev) => [...prev, { ...p, id }]);
-    return id;
-  }, []);
+  // Promociones: mismo patrón que combos. SELECT abierto (RLS) + writes
+  // protegidos por is_admin().
+  const getPromos = useCallback(() => dbPromos, [dbPromos]);
+  const createPromo = useCallback(
+    (p: Omit<Promo, 'id'>) => {
+      const id = generatePromoId();
+      const full: Promo = { ...p, id };
+      queryClient.setQueryData<Promo[]>(['promos'], (prev) =>
+        prev ? [full, ...prev] : [full],
+      );
+      void dbCreatePromo(full)
+        .then(() => invalidatePromos())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] createPromo failed:', err);
+          void invalidatePromos();
+        });
+      return id;
+    },
+    [queryClient, invalidatePromos],
+  );
   const updatePromo = useCallback(
-    (id: string, fields: Partial<Omit<Promo, 'id'>>) =>
-      setPromos((prev) => prev.map((p) => (p.id === id ? { ...p, ...fields } : p))),
-    [],
+    (id: string, fields: Partial<Omit<Promo, 'id'>>) => {
+      queryClient.setQueryData<Promo[]>(['promos'], (prev) =>
+        prev ? prev.map((p) => (p.id === id ? { ...p, ...fields } : p)) : prev,
+      );
+      void dbUpdatePromo(id, fields)
+        .then(() => invalidatePromos())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updatePromo failed:', err);
+          void invalidatePromos();
+        });
+    },
+    [queryClient, invalidatePromos],
   );
   const deletePromo = useCallback(
-    (id: string) => setPromos((prev) => prev.filter((p) => p.id !== id)),
-    [],
+    (id: string) => {
+      queryClient.setQueryData<Promo[]>(['promos'], (prev) =>
+        prev ? prev.filter((p) => p.id !== id) : prev,
+      );
+      void dbDeletePromo(id)
+        .then(() => invalidatePromos())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] deletePromo failed:', err);
+          void invalidatePromos();
+        });
+    },
+    [queryClient, invalidatePromos],
   );
 
   // Horarios
