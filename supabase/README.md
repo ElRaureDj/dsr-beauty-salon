@@ -11,7 +11,8 @@ supabase/
 ├─ README.md                  # este archivo
 └─ migrations/
    ├─ 0001_init.sql           # schema (tablas + RLS read-only pública)
-   └─ 0002_seed.sql           # datos iniciales (idempotente)
+   ├─ 0002_seed.sql           # datos iniciales (idempotente)
+   └─ 0003_profiles.sql       # tabla profiles + trigger on signup + RLS owner
 ```
 
 ## Aplicar las migraciones
@@ -79,6 +80,10 @@ En Project Settings → Environment Variables, agrega las dos con scope
 
 - [x] Fase 1 — Schema + seed
 - [x] Fase 2 — Cliente Supabase + env vars + TanStack Query
-- [ ] Fase 3 — Auth real (email magic link, después Apple/Google)
-- [ ] Fase 4 — Migrar `CatalogProvider` a fetch desde DB
-- [ ] Fase 5 — Migrar cart/bookings/gift cards al backend
+- [x] Fase 3 — Auth real (email magic link)
+- [x] Fase 4a — `CatalogProvider` lee products/services/artisans de DB
+- [x] Fase 4b — nail_looks + gift_card_designs de DB
+- [x] Fase 4c — `profiles` table + hook que reemplaza el USER mock
+- [ ] Fase 5 — Combos/promos/stocks/etc. (admin-editable) a DB con RLS por rol
+- [ ] Fase 6 — Cart/bookings/gift cards al backend
+- [ ] Fase 7 — OAuth Apple/Google + Apple Pay real

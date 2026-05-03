@@ -344,6 +344,57 @@ export async function fetchGiftCardDesigns(): Promise<GiftCardDesign[]> {
   return data as DbGiftCardDesign[];
 }
 
+// ---------- Profiles (per-user) ----------
+
+export interface DbProfile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  points: number;
+  visits: number;
+  spent: number;
+  joined: string;
+  preferred_artisans: string[];
+}
+
+/** Lee el profile del user actual (owner). RLS bloquea acceso a otros. */
+export async function fetchMyProfile(): Promise<DbProfile | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(
+      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans',
+    )
+    .maybeSingle();
+  if (error) throw error;
+  return data as DbProfile | null;
+}
+
+/**
+ * Update parcial del profile del owner. Solo campos editables — points/
+ * visits/spent vienen del backend (admin/transacciones), no del cliente.
+ */
+export type ProfileUpdate = Partial<
+  Pick<DbProfile, 'full_name' | 'display_name' | 'avatar_url' | 'preferred_artisans'>
+>;
+
+export async function updateMyProfile(
+  userId: string,
+  updates: ProfileUpdate,
+): Promise<DbProfile | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId)
+    .select(
+      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans',
+    )
+    .maybeSingle();
+  if (error) throw error;
+  return data as DbProfile | null;
+}
+
 // ---------- Service Variants ----------
 
 interface DbServiceVariant {

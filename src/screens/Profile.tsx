@@ -16,25 +16,28 @@ import {
 } from '../components/atoms';
 import { tierFor } from '../data/helpers';
 import { useCatalog } from '../data/CatalogProvider';
+import { useAppointments } from '../data/AppointmentsProvider';
 import { useRouter } from '../router/Router';
-import { USER } from '../data/user';
 import { useUser } from '../data/UserProvider';
+import { useUserData } from '../data/useUserData';
 
 export function Profile() {
   const T = useTheme();
   const { t, lang, setLang } = useI18n();
   const { go } = useRouter();
   const { getArtisan, getService } = useCatalog();
+  const { appointments } = useAppointments();
   const { avatar, signOut } = useUser();
+  const user = useUserData();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   useEffect(() => {
     setAvatarFailed(false);
   }, [avatar]);
   const showAvatarImg = !!avatar && !avatarFailed;
-  const tier = tierFor(USER.points);
-  const upcoming = USER.appointments.filter((a) => a.status === 'confirmed');
-  const past = USER.appointments.filter((a) => a.status === 'past');
+  const tier = tierFor(user.points);
+  const upcoming = appointments.filter((a) => a.status === 'confirmed');
+  const past = appointments.filter((a) => a.status === 'past');
 
   const handleResetOnboarding = () => {
     try {
@@ -128,7 +131,7 @@ export function Profile() {
                 onError={() => setAvatarFailed(true)}
               />
             ) : (
-              USER.name[0]
+              user.name[0]
             )}
             {/* Edit indicator overlay */}
             <span
@@ -152,7 +155,7 @@ export function Profile() {
             </span>
           </button>
           <div>
-            <H2 style={{ fontSize: 26 }}>{USER.fullName}</H2>
+            <H2 style={{ fontSize: 26 }}>{user.fullName}</H2>
             <Tiny
               style={{
                 color: T.gold,
@@ -162,7 +165,7 @@ export function Profile() {
                 fontSize: 11,
               }}
             >
-              {tier.name[lang]} · {USER.points.toLocaleString()} {t('points')}
+              {tier.name[lang]} · {user.points.toLocaleString()} {t('points')}
             </Tiny>
           </div>
         </div>

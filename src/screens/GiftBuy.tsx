@@ -16,7 +16,7 @@ import {
 import { GiftCardVisual } from '../components/GiftCardVisual';
 import { GIFTCARD_AMOUNTS } from '../data/giftcards';
 import { useCatalog } from '../data/CatalogProvider';
-import { USER } from '../data/user';
+import { useUserData } from '../data/useUserData';
 import { useRouter } from '../router/Router';
 
 interface GiftBuyProps {
@@ -104,13 +104,14 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getGiftCardDesigns, getGiftCardDesign } = useCatalog();
+  const user = useUserData();
 
   const [step, setStep] = useState(0);
   const [designId, setDesignId] = useState(initial.design || 'noir');
   const [amount, setAmount] = useState(150);
   const [custom, setCustom] = useState('');
   const [recipient, setRecipient] = useState('');
-  const [from, setFrom] = useState(USER.fullName);
+  const [from, setFrom] = useState(user.fullName);
   const [message, setMessage] = useState(
     lang === 'es'
       ? 'Para que vivas un momento de la maison.'

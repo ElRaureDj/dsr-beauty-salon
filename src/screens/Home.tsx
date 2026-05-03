@@ -18,7 +18,8 @@ import {
 } from '../components/atoms';
 import { useCatalog } from '../data/CatalogProvider';
 import { useAppointments } from '../data/AppointmentsProvider';
-import { STORIES, USER } from '../data/user';
+import { STORIES } from '../data/user';
+import { useUserData } from '../data/useUserData';
 import { greeting, nextTier, tierFor } from '../data/helpers';
 import { I, IMG_HERO_SPRING, IMG_LOOK_OF_MONTH } from '../data/images';
 import { useRouter } from '../router/Router';
@@ -29,10 +30,11 @@ export function Home() {
   const { go } = useRouter();
   const { getArtisan, getService, getAllArtisans, getCombos, getAllServices } = useCatalog();
   const { getUpcoming } = useAppointments();
+  const user = useUserData();
   const featuredCombos = getCombos().filter((c) => c.popular);
   const allServicesForCombos = getAllServices();
-  const tier = tierFor(USER.points);
-  const next = nextTier(USER.points);
+  const tier = tierFor(user.points);
+  const next = nextTier(user.points);
 
   const heroImg = IMG_HERO_SPRING();
   const upcoming = getUpcoming();
@@ -68,7 +70,7 @@ export function Home() {
               lineHeight: 1,
             }}
           >
-            {USER.name}.
+            {user.name}.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -720,7 +722,7 @@ export function Home() {
                   fontWeight: 300,
                 }}
               >
-                {USER.points.toLocaleString()}
+                {user.points.toLocaleString()}
               </div>
               <Tiny
                 muted
@@ -732,7 +734,7 @@ export function Home() {
             {next && (
               <div style={{ textAlign: 'right' }}>
                 <Tiny muted style={{ letterSpacing: 0.5, textTransform: 'none' }}>
-                  {(next.min - USER.points).toLocaleString()} {t('points')}
+                  {(next.min - user.points).toLocaleString()} {t('points')}
                 </Tiny>
                 <Tiny
                   style={{
@@ -751,7 +753,7 @@ export function Home() {
             <div style={{ marginTop: 14, height: 2, background: T.line }}>
               <div
                 style={{
-                  width: `${((USER.points - tier.min) / (next.min - tier.min)) * 100}%`,
+                  width: `${((user.points - tier.min) / (next.min - tier.min)) * 100}%`,
                   height: '100%',
                   background: T.gold,
                   transition: 'width .6s',
