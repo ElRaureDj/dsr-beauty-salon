@@ -1590,6 +1590,33 @@ export async function cancelAppointmentRpc(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Slot ocupado de un artist (sin PII). Wrapper de la RPC taken_slots (0014). */
+export interface TakenSlot {
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  duration: number; // minutos
+}
+
+export async function fetchTakenSlots(
+  artisanId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<TakenSlot[]> {
+  const { data, error } = await supabase.rpc('taken_slots', {
+    p_artisan_id: artisanId,
+    p_from: fromDate,
+    p_to: toDate,
+  });
+  if (error) throw error;
+  return ((data ?? []) as Array<{ date: string; time: string; duration: number }>).map(
+    (row) => ({
+      date: row.date,
+      time: row.time.slice(0, 5),
+      duration: row.duration,
+    }),
+  );
+}
+
 // Admin: vista cross-user de appointments. Mantiene el rawStatus para que
 // el admin pueda distinguir 'cancelled' de 'completed' (al customer le da
 // igual; al admin no).

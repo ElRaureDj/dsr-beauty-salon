@@ -82,6 +82,7 @@ VITE_SUPABASE_ANON_KEY=sb_publishable__fYtbk7SYClaJyNAWgXQLA_NUstNSl-
 11. `0011_profile_preferences.sql` — `profiles.theme` ('noir'|'marbre') y `profiles.preferred_lang` ('es'|'en') con defaults + check constraints. Las RLS `_own` existentes ya cubren las nuevas columnas.
 12. `0012_appointments.sql` — tabla `appointments` (uuid PK, status `confirmed/completed/cancelled`, `points_earned` snapshot, FKs a artisans y combos). RLS `_own` para customer + admin SELECT cross-user + admin UPDATE para gestión.
 13. `0013_checkout_rpcs.sql` — dos RPCs SECURITY DEFINER: `confirm_checkout()` mueve pending_bookings → appointments + decrementa stock + suma points/visits/spent (con multiplier del tier actual del user) + limpia bolsa, todo atómico. `cancel_appointment(uuid)` valida ownership + actualiza status + hace rollback de points/visits/spent si la cita era futura.
+14. `0014_taken_slots_rpc.sql` — RPC `taken_slots(artisan_id, from, to)` SECURITY DEFINER. Devuelve `(date, time, duration)` para todos los pending_bookings + appointments confirmadas del artist en el rango, SIN exponer PII (user_id, services, total). Booking customer la consume para marcar slots ocupados — evita doble booking.
 
 ### Promoverse a admin
 

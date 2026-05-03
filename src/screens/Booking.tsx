@@ -1,5 +1,6 @@
 // DSR — Booking flow (5 steps): services → artisan → date/time → review → confirmed
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import {
@@ -25,6 +26,7 @@ import { buildSchedule } from '../data/helpers';
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
+import { fetchTakenSlots } from '../lib/db';
 import type { CategoryId } from '../types';
 
 interface BookingProps {
@@ -160,8 +162,33 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const arObj = artisan && artisan !== 'any' ? getArtisan(artisan) : null;
   // For "any", just pick the first eligible artisan deterministically
   const effectiveArtisan = arObj ?? (artisan === 'any' ? eligibleArtisans[0] : null);
+
+  // Slots ya tomados por el artist en los próximos 7 días — vienen de la
+  // RPC taken_slots (pending_bookings + appointments confirmadas, sin PII).
+  // Si la query falla o aún carga, takenSlots queda undefined y buildSchedule
+  // cae al modo seed-determinista (preserva la demo guest sin llamadas DB).
+  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const endKey = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().slice(0, 10);
+  }, []);
+  const { data: takenSlots } = useQuery({
+    queryKey: ['taken-slots', effectiveArtisan?.id, todayKey, endKey],
+    queryFn: () =>
+      effectiveArtisan
+        ? fetchTakenSlots(effectiveArtisan.id, todayKey, endKey)
+        : Promise.resolve([]),
+    enabled: !!effectiveArtisan,
+    staleTime: 30_000,
+  });
+
   const schedule = effectiveArtisan
-    ? buildSchedule(effectiveArtisan.id, getSchedule(effectiveArtisan.id))
+    ? buildSchedule(
+        effectiveArtisan.id,
+        getSchedule(effectiveArtisan.id),
+        takenSlots,
+      )
     : [];
 
   const stepsLabels = [

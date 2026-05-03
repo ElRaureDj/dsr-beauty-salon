@@ -52,24 +52,51 @@ function minutesToHHMM(min: number): string {
 }
 
 /**
+ * Slot ocupado: una cita existente del artist que bloquea un rango.
+ * Pasarlos a `buildSchedule` marca como busy todos los slots de 30 min
+ * que solapen con [time, time + duration).
+ */
+export interface TakenInterval {
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM (start)
+  duration: number; // minutos
+}
+
+/**
  * Build a 7-day availability schedule for an artisan.
  * El día off y el rango de horas viene del `schedule` real (admin-managed).
  * Si el caller no lo pasa, asumimos los defaults (10:00-20:00, dom off).
  *
- * La disponibilidad de cada slot dentro del rango sigue siendo pseudo-random
- * con seed por id, para que la demo se vea estable y consistente.
+ * `takenSlots` (opcional) viene del RPC `taken_slots`: pending_bookings
+ * + appointments confirmed del mismo artist. Cada uno bloquea todos los
+ * slots de 30 min cuyo intervalo solape con [time, time+duration).
  *
- * `startDate` por defecto es hoy. Antes era `new Date('2026-05-02')` para
- * estabilizar screenshots de demo, pero en producción eso quedaba siempre
- * en mayo de 2026 sin importar la fecha real.
+ * Cuando `takenSlots` está provisto, la disponibilidad de cada slot es
+ * data-driven (no seed-determinista). Cuando no se pasa (preview/demo),
+ * volvemos al seed para que la lista de slots libres se vea consistente.
+ *
+ * `startDate` por defecto es hoy.
  */
 export function buildSchedule(
   artisanId: string,
   schedule?: ArtisanSchedule,
+  takenSlots?: TakenInterval[],
   startDate: Date = new Date(),
 ): ScheduleDay[] {
   const days: ScheduleDay[] = [];
   const seed = artisanId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+
+  // Pre-procesar takenSlots a un map date → array de [start, end) en minutos.
+  const takenByDate = new Map<string, Array<[number, number]>>();
+  if (takenSlots) {
+    for (const t of takenSlots) {
+      const startMin = hhmmToMinutes(t.time);
+      const endMin = startMin + t.duration;
+      const arr = takenByDate.get(t.date);
+      if (arr) arr.push([startMin, endMin]);
+      else takenByDate.set(t.date, [[startMin, endMin]]);
+    }
+  }
 
   for (let d = 0; d < 7; d++) {
     const date = new Date(startDate);
@@ -80,15 +107,24 @@ export function buildSchedule(
     const startMin = hhmmToMinutes(cfg?.startTime ?? '10:00');
     const endMin = hhmmToMinutes(cfg?.endTime ?? '20:00');
 
+    const dateKey = date.toISOString().slice(0, 10);
+    const taken = takenByDate.get(dateKey) ?? [];
+
     // Genera slots cada 30 min dentro del rango (excluye el end exacto).
     const slots: { time: string; free: boolean }[] = [];
     if (isWorking && endMin > startMin) {
       let i = 0;
       for (let t = startMin; t + 30 <= endMin; t += 30, i++) {
-        slots.push({
-          time: minutesToHHMM(t),
-          free: (seed + d * 7 + i * 3) % 5 !== 0 && (seed + d + i) % 4 !== 0,
-        });
+        const slotEnd = t + 30;
+        const isTaken = taken.some(
+          ([takenStart, takenEnd]) => t < takenEnd && slotEnd > takenStart,
+        );
+        // Si tenemos data real, free se determina por overlap.
+        // Si no, seed-determinista (demo estable).
+        const free = takenSlots
+          ? !isTaken
+          : (seed + d * 7 + i * 3) % 5 !== 0 && (seed + d + i) % 4 !== 0;
+        slots.push({ time: minutesToHHMM(t), free });
       }
     }
 
