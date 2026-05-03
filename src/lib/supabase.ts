@@ -23,5 +23,14 @@ export const supabase: SupabaseClient = createClient(url ?? '', anonKey ?? '', {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    // PKCE flow: el magic link incluye un ?code= que se intercambia por
+    // sesión usando un code_verifier guardado en localStorage al pedir el
+    // OTP. Email scanners (Gmail, Outlook) no pueden completar el flow
+    // porque no tienen el verifier — eso resuelve el otp_expired clásico.
+    flowType: 'pkce',
+    // detectSessionInUrl es true por default; lo dejamos explícito.
+    // Cuando el browser carga ?code=xxx, supabase-js intercambia
+    // automáticamente y limpia el URL.
+    detectSessionInUrl: true,
   },
 });
