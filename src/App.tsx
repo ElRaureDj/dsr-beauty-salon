@@ -9,33 +9,58 @@ import { UserProvider, useUser } from './data/UserProvider';
 import { CatalogProvider } from './data/CatalogProvider';
 import { AppointmentsProvider } from './data/AppointmentsProvider';
 import { FavoritesProvider } from './data/FavoritesProvider';
-import { CartDrawer, TabBar, ToastProvider, TopChrome } from './components/atoms';
+import { CartDrawer, Skeleton, TabBar, ToastProvider, TopChrome } from './components/atoms';
 import type { RouteName, TabId } from './types';
 
-import { AdminApp } from './admin/AdminApp';
-import { Auth } from './screens/Auth';
-import { Onboarding } from './screens/Onboarding';
+// Síncronos: pantallas con probabilidad alta de hit en first paint —
+// home (landing), services / shop / rewards (tabs default), profile (menú),
+// detalles populares directos.
 import { Home } from './screens/Home';
 import { Services } from './screens/Services';
-import { ServiceDetail } from './screens/ServiceDetail';
-import { ArtisanProfile } from './screens/ArtisanProfile';
-import { Booking } from './screens/Booking';
-import { Rewards } from './screens/Rewards';
 import { Shop } from './screens/Shop';
-import { ProductDetail } from './screens/ProductDetail';
-import { Bag } from './screens/Bag';
-import { CheckoutSuccess } from './screens/CheckoutSuccess';
+import { Rewards } from './screens/Rewards';
 import { Profile } from './screens/Profile';
-import { NailAtelier } from './screens/NailAtelier';
-import { NailLookDetail } from './screens/NailLookDetail';
-import { GiftCards } from './screens/GiftCards';
-import { GiftBuy } from './screens/GiftBuy';
-import { GiftMine } from './screens/GiftMine';
-import { AppointmentDetail } from './screens/AppointmentDetail';
-import { PersonalInfo } from './screens/PersonalInfo';
-import { Addresses } from './screens/Addresses';
-import { Legal } from './screens/Legal';
-import { Favorites } from './screens/Favorites';
+import { Bag } from './screens/Bag';
+import { ServiceDetail } from './screens/ServiceDetail';
+import { ProductDetail } from './screens/ProductDetail';
+import { ArtisanProfile } from './screens/ArtisanProfile';
+
+// Lazy: pantallas de flow secundario o admin. Cada una se carga al
+// navegar por primera vez. Reduce el bundle inicial significativamente
+// (admin sólo + 1MB; los flows largos como Booking/GiftBuy también pesan).
+import { lazy, Suspense } from 'react';
+const AdminApp = lazy(() => import('./admin/AdminApp').then((m) => ({ default: m.AdminApp })));
+const Onboarding = lazy(() =>
+  import('./screens/Onboarding').then((m) => ({ default: m.Onboarding })),
+);
+const Auth = lazy(() => import('./screens/Auth').then((m) => ({ default: m.Auth })));
+const Booking = lazy(() => import('./screens/Booking').then((m) => ({ default: m.Booking })));
+const CheckoutSuccess = lazy(() =>
+  import('./screens/CheckoutSuccess').then((m) => ({ default: m.CheckoutSuccess })),
+);
+const NailAtelier = lazy(() =>
+  import('./screens/NailAtelier').then((m) => ({ default: m.NailAtelier })),
+);
+const NailLookDetail = lazy(() =>
+  import('./screens/NailLookDetail').then((m) => ({ default: m.NailLookDetail })),
+);
+const GiftCards = lazy(() => import('./screens/GiftCards').then((m) => ({ default: m.GiftCards })));
+const GiftBuy = lazy(() => import('./screens/GiftBuy').then((m) => ({ default: m.GiftBuy })));
+const GiftMine = lazy(() => import('./screens/GiftMine').then((m) => ({ default: m.GiftMine })));
+const AppointmentDetail = lazy(() =>
+  import('./screens/AppointmentDetail').then((m) => ({ default: m.AppointmentDetail })),
+);
+const PersonalInfo = lazy(() =>
+  import('./screens/PersonalInfo').then((m) => ({ default: m.PersonalInfo })),
+);
+const Addresses = lazy(() =>
+  import('./screens/Addresses').then((m) => ({ default: m.Addresses })),
+);
+const Legal = lazy(() => import('./screens/Legal').then((m) => ({ default: m.Legal })));
+const Favorites = lazy(() =>
+  import('./screens/Favorites').then((m) => ({ default: m.Favorites })),
+);
+
 import type { LegalDocId } from './data/legal';
 
 // Configuración de chrome por route. Una sola tabla para evitar el footgun
@@ -173,7 +198,9 @@ function FrameInner({ onOnboardingDone }: { onOnboardingDone: () => void }) {
         className="dsr-route-in"
         style={{ position: 'absolute', inset: 0 }}
       >
-        <ScreenSwitch onOnboardingDone={handleOnboardingDone} />
+        <Suspense fallback={<ScreenLoading />}>
+          <ScreenSwitch onOnboardingDone={handleOnboardingDone} />
+        </Suspense>
       </div>
       {showChrome && <TopChrome />}
       <CartDrawer />
@@ -303,7 +330,11 @@ function PrefsSync() {
 function RootLayout({ onOnboardingDone }: { onOnboardingDone: () => void }) {
   const { route } = useRouter();
   if (route.name === 'admin') {
-    return <AdminApp />;
+    return (
+      <Suspense fallback={<AdminLoading />}>
+        <AdminApp />
+      </Suspense>
+    );
   }
   return (
     <DesktopFrame>
@@ -356,6 +387,46 @@ function DesktopFrame({ children }: { children: React.ReactNode }) {
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+
+/** Fallback genérico mientras una screen lazy carga su chunk. Minimal:
+ *  un Skeleton block que respeta la geometría iPhone-frame del wrapper. */
+function ScreenLoading() {
+  const T = useTheme();
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        background: T.bg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Skeleton variant="circle" size={40} />
+    </div>
+  );
+}
+
+/** Fallback para el AdminApp lazy. El admin es desktop full-viewport. */
+function AdminLoading() {
+  const T = useTheme();
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: T.bg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Skeleton variant="circle" size={48} />
     </div>
   );
 }
