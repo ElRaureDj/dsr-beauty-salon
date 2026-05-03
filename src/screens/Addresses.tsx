@@ -23,6 +23,12 @@ import {
 } from '../components/atoms';
 import { useRouter } from '../router/Router';
 import { useUser } from '../data/UserProvider';
+import { useUserData } from '../data/useUserData';
+import {
+  US_STATES,
+  detectLabelType,
+  type AddressLabelType,
+} from '../data/us-states';
 import {
   createAddress,
   deleteAddress,
@@ -31,31 +37,46 @@ import {
   type AddressInput,
 } from '../lib/db';
 import type { Address } from '../types';
+import type { I18nKey } from '../i18n/strings';
+
+// Country fijo a US para esta versión.
+const COUNTRY = 'US';
 
 const EMPTY_INPUT: AddressInput = {
-  label: '',
+  label: 'home',
   recipient: '',
   line1: '',
   line2: '',
   city: '',
   region: '',
   postalCode: '',
-  country: 'ES',
+  country: COUNTRY,
   phone: '',
   isDefault: false,
 };
+
+const LABEL_TYPES: { type: AddressLabelType; key: I18nKey }[] = [
+  { type: 'home', key: 'addressLabelHome' },
+  { type: 'office', key: 'addressLabelOffice' },
+  { type: 'custom', key: 'addressLabelCustom' },
+];
 
 export function Addresses() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { signedIn, session } = useUser();
+  const user = useUserData();
   const userId = session?.user?.id ?? null;
   const queryClient = useQueryClient();
 
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AddressInput>(EMPTY_INPUT);
+  // Tipo lógico del label (home/office/custom). El draft.label guarda
+  // el valor real que va a DB (string literal "home"/"office" o el texto custom).
+  const [labelType, setLabelType] = useState<AddressLabelType>('home');
+  const [customLabel, setCustomLabel] = useState('');
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -98,13 +119,19 @@ export function Addresses() {
   }
 
   const startCreate = () => {
-    setDraft(EMPTY_INPUT);
+    // Recipient default: nombre completo del profile (o display_name).
+    setDraft({ ...EMPTY_INPUT, recipient: user.fullName });
+    setLabelType('home');
+    setCustomLabel('');
     setEditingId(null);
     setErrorMsg(null);
     setView('form');
   };
 
   const startEdit = (a: Address) => {
+    const type = detectLabelType(a.label);
+    setLabelType(type);
+    setCustomLabel(type === 'custom' ? a.label : '');
     setDraft({
       label: a.label,
       recipient: a.recipient,
@@ -113,7 +140,7 @@ export function Addresses() {
       city: a.city,
       region: a.region,
       postalCode: a.postalCode,
-      country: a.country,
+      country: COUNTRY,
       phone: a.phone,
       isDefault: a.isDefault,
     });
@@ -128,13 +155,38 @@ export function Addresses() {
     setErrorMsg(null);
   };
 
+  const handleLabelType = (type: AddressLabelType) => {
+    setLabelType(type);
+    if (type === 'home') setDraft((d) => ({ ...d, label: 'home' }));
+    else if (type === 'office') setDraft((d) => ({ ...d, label: 'office' }));
+    else setDraft((d) => ({ ...d, label: customLabel }));
+  };
+
+  const handleCustomLabel = (v: string) => {
+    setCustomLabel(v);
+    setDraft((d) => ({ ...d, label: v }));
+  };
+
   const handleSave = async () => {
     if (!userId || saving) return;
-    if (!draft.line1.trim() || !draft.city.trim() || !draft.postalCode.trim()) {
+    if (
+      !draft.line1.trim() ||
+      !draft.city.trim() ||
+      !draft.postalCode.trim() ||
+      !draft.region
+    ) {
       setErrorMsg(
         lang === 'es'
-          ? 'Completa calle, ciudad y código postal.'
-          : 'Fill in street, city and postal code.',
+          ? 'Completa calle, ciudad, estado y ZIP.'
+          : 'Fill in street, city, state and ZIP.',
+      );
+      return;
+    }
+    if (labelType === 'custom' && !customLabel.trim()) {
+      setErrorMsg(
+        lang === 'es'
+          ? 'Ingresa una etiqueta para esta dirección.'
+          : 'Enter a label for this address.',
       );
       return;
     }
@@ -178,13 +230,43 @@ export function Addresses() {
             {editingId ? t('addressesEdit') : t('addressesNew')}
           </H1>
 
-          <Field label={t('addressFormLabel')} hint={t('addressFormLabelHint')} T={T}>
-            <Input
-              value={draft.label}
-              onChange={(v) => setDraft((d) => ({ ...d, label: v }))}
-              T={T}
-            />
+          <Field label={t('addressFormLabel')} T={T}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {LABEL_TYPES.map(({ type, key }) => {
+                const sel = labelType === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => handleLabelType(type)}
+                    type="button"
+                    className="dsr-press"
+                    style={{
+                      flex: 1,
+                      padding: '11px 10px',
+                      background: sel ? T.gold : T.surface,
+                      color: sel ? T.bg : T.text,
+                      border: 'none',
+                      boxShadow: sel ? 'none' : `inset 0 0 0 1px ${T.line}`,
+                      cursor: 'pointer',
+                      fontFamily: T.sans,
+                      fontSize: 12,
+                      letterSpacing: 0.4,
+                      fontWeight: 500,
+                      transition: 'background .15s, color .15s',
+                    }}
+                  >
+                    {t(key) as string}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
+          {labelType === 'custom' && (
+            <Field label={t('addressFormCustomLabel')} T={T}>
+              <Input value={customLabel} onChange={handleCustomLabel} T={T} />
+            </Field>
+          )}
+
           <Field label={t('addressFormRecipient')} T={T}>
             <Input
               value={draft.recipient}
@@ -206,35 +288,49 @@ export function Addresses() {
               T={T}
             />
           </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-            <Field label={t('addressFormCity')} T={T}>
-              <Input
-                value={draft.city}
-                onChange={(v) => setDraft((d) => ({ ...d, city: v }))}
-                T={T}
-              />
+          <Field label={t('addressFormCity')} T={T}>
+            <Input
+              value={draft.city}
+              onChange={(v) => setDraft((d) => ({ ...d, city: v }))}
+              T={T}
+            />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label={t('addressFormState')} T={T}>
+              <select
+                value={draft.region}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, region: e.target.value }))
+                }
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  background: T.surface,
+                  border: 'none',
+                  boxShadow: `inset 0 0 0 1px ${T.line}`,
+                  color: draft.region ? T.text : T.textMuted,
+                  fontFamily: T.sans,
+                  fontSize: 13,
+                  outline: 'none',
+                  appearance: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="" disabled>
+                  {t('addressFormStatePlaceholder')}
+                </option>
+                {US_STATES.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.code} — {s.name}
+                  </option>
+                ))}
+              </select>
             </Field>
-            <Field label={t('addressFormPostalCode')} T={T}>
+            <Field label={t('addressFormZip')} T={T}>
               <Input
                 value={draft.postalCode}
-                onChange={(v) => setDraft((d) => ({ ...d, postalCode: v }))}
-                T={T}
-              />
-            </Field>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-            <Field label={t('addressFormRegion')} T={T}>
-              <Input
-                value={draft.region}
-                onChange={(v) => setDraft((d) => ({ ...d, region: v }))}
-                T={T}
-              />
-            </Field>
-            <Field label={t('addressFormCountry')} T={T}>
-              <Input
-                value={draft.country}
                 onChange={(v) =>
-                  setDraft((d) => ({ ...d, country: v.toUpperCase().slice(0, 2) }))
+                  setDraft((d) => ({ ...d, postalCode: v.replace(/\D/g, '').slice(0, 5) }))
                 }
                 T={T}
               />
@@ -384,89 +480,89 @@ export function Addresses() {
           </div>
         ) : (
           <div style={{ marginTop: 26, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {addresses.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => startEdit(a)}
-                className="dsr-press"
-                style={{
-                  background: T.surface,
-                  boxShadow: `inset 0 0 0 1px ${a.isDefault ? T.gold : T.line}`,
-                  padding: 18,
-                  border: 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  position: 'relative',
-                }}
-              >
-                {a.isDefault && (
-                  <Tiny
-                    style={{
-                      position: 'absolute',
-                      top: 14,
-                      right: 14,
-                      color: T.gold,
-                      letterSpacing: 1.4,
-                      fontSize: 9,
-                    }}
-                  >
-                    ★ {t('addressesDefault')}
-                  </Tiny>
-                )}
-                <H3 style={{ fontSize: 15 }}>
-                  {a.label || a.recipient || a.line1}
-                </H3>
-                {a.recipient && a.label && (
-                  <Tiny
-                    muted
-                    style={{
-                      marginTop: 4,
-                      fontSize: 11,
-                      letterSpacing: 0.3,
-                      textTransform: 'none',
-                    }}
-                  >
-                    {a.recipient}
-                  </Tiny>
-                )}
-                <Body
+            {addresses.map((a) => {
+              const labelDisplay = displayLabel(a.label, t);
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => startEdit(a)}
+                  className="dsr-press"
                   style={{
-                    marginTop: 8,
-                    fontSize: 12,
-                    lineHeight: 1.5,
-                    color: T.textMuted,
+                    background: T.surface,
+                    boxShadow: `inset 0 0 0 1px ${a.isDefault ? T.gold : T.line}`,
+                    padding: 18,
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    position: 'relative',
                   }}
                 >
-                  {a.line1}
-                  {a.line2 ? `, ${a.line2}` : ''}
-                  <br />
-                  {a.postalCode} {a.city}
-                  {a.region ? `, ${a.region}` : ''} · {a.country}
-                </Body>
-                <div
-                  style={{
-                    marginTop: 12,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    color: T.gold,
-                  }}
-                >
-                  <Ico size={11} color={T.gold}>
-                    {Icons.edit}
-                  </Ico>
-                  <Tiny
+                  {a.isDefault && (
+                    <Tiny
+                      style={{
+                        position: 'absolute',
+                        top: 14,
+                        right: 14,
+                        color: T.gold,
+                        letterSpacing: 1.4,
+                        fontSize: 9,
+                      }}
+                    >
+                      ★ {t('addressesDefault')}
+                    </Tiny>
+                  )}
+                  <H3 style={{ fontSize: 15 }}>{labelDisplay}</H3>
+                  {a.recipient && (
+                    <Tiny
+                      muted
+                      style={{
+                        marginTop: 4,
+                        fontSize: 11,
+                        letterSpacing: 0.3,
+                        textTransform: 'none',
+                      }}
+                    >
+                      {a.recipient}
+                    </Tiny>
+                  )}
+                  <Body
                     style={{
-                      color: T.gold,
-                      letterSpacing: 1.2,
-                      fontSize: 10,
+                      marginTop: 8,
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: T.textMuted,
                     }}
                   >
-                    {t('addressesEdit')}
-                  </Tiny>
-                </div>
-              </button>
-            ))}
+                    {a.line1}
+                    {a.line2 ? `, ${a.line2}` : ''}
+                    <br />
+                    {a.city}, {a.region} {a.postalCode}
+                  </Body>
+                  <div
+                    style={{
+                      marginTop: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: T.gold,
+                    }}
+                  >
+                    <Ico size={11} color={T.gold}>
+                      {Icons.edit}
+                    </Ico>
+                    <Tiny
+                      style={{
+                        color: T.gold,
+                        letterSpacing: 1.2,
+                        fontSize: 10,
+                      }}
+                    >
+                      {t('addressesEdit')}
+                    </Tiny>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -491,6 +587,16 @@ export function Addresses() {
       </div>
     </Screen>
   );
+}
+
+/** Devuelve el label para mostrar — traducido si es home/office, literal si es custom. */
+function displayLabel(
+  stored: string,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  if (stored === 'home') return t('addressLabelHome') as string;
+  if (stored === 'office') return t('addressLabelOffice') as string;
+  return stored || (t('addressLabelCustom') as string);
 }
 
 function Field({

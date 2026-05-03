@@ -244,6 +244,13 @@ export interface I18nStrings {
   addressFormCountry: string;
   addressFormPhone: string;
   addressFormSave: string;
+  addressLabelHome: string;
+  addressLabelOffice: string;
+  addressLabelCustom: string;
+  addressFormCustomLabel: string;
+  addressFormState: string;
+  addressFormZip: string;
+  addressFormStatePlaceholder: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -491,6 +498,13 @@ export const I18N: Record<Lang, I18nStrings> = {
     addressFormCountry: 'País',
     addressFormPhone: 'Teléfono',
     addressFormSave: 'Guardar dirección',
+    addressLabelHome: 'Casa',
+    addressLabelOffice: 'Oficina',
+    addressLabelCustom: 'Personalizada',
+    addressFormCustomLabel: 'Etiqueta personalizada',
+    addressFormState: 'Estado',
+    addressFormZip: 'ZIP',
+    addressFormStatePlaceholder: 'Selecciona un estado',
   },
   en: {
     welcome: 'Welcome',
@@ -734,5 +748,12 @@ export const I18N: Record<Lang, I18nStrings> = {
     addressFormCountry: 'Country',
     addressFormPhone: 'Phone',
     addressFormSave: 'Save address',
+    addressLabelHome: 'Home',
+    addressLabelOffice: 'Office',
+    addressLabelCustom: 'Custom',
+    addressFormCustomLabel: 'Custom label',
+    addressFormState: 'State',
+    addressFormZip: 'ZIP',
+    addressFormStatePlaceholder: 'Select a state',
   },
 };
