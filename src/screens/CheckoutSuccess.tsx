@@ -21,6 +21,7 @@ import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
 import { useUser } from '../data/UserProvider';
 import { confirmCheckout, incrementPromoUse } from '../lib/db';
+import { useToast } from '../components/atoms/Toast';
 
 function generateOrderId(): string {
   // 6-digit random; suficiente para mock
@@ -36,6 +37,7 @@ export function CheckoutSuccess() {
   const { session, refreshProfile } = useUser();
   const userId = session?.user?.id ?? null;
   const queryClient = useQueryClient();
+  const { show: showToast } = useToast();
 
   // Snapshot del total ANTES de limpiar — sino se ve €0 en pantalla.
   const [snapshot] = useState(() => ({
@@ -72,6 +74,15 @@ export function CheckoutSuccess() {
         .catch((err) => {
           // eslint-disable-next-line no-console
           console.error('[checkout] confirmCheckout failed:', err);
+          showToast({
+            kind: 'error',
+            message:
+              lang === 'es'
+                ? 'No pudimos confirmar tu pedido del todo'
+                : 'We could not fully confirm your order',
+            detail: err instanceof Error ? err.message : String(err),
+            duration: 6000,
+          });
         });
     }
     // El cart.clear() local es siempre necesario:

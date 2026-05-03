@@ -22,6 +22,7 @@ import {
   RateStars,
   Screen,
   Tiny,
+  useToast,
 } from '../components/atoms';
 import { useAppointments } from '../data/AppointmentsProvider';
 import { useCatalog } from '../data/CatalogProvider';
@@ -43,6 +44,7 @@ export function AppointmentDetail({ id }: Props) {
   const { session } = useUser();
   const userData = useUserData();
   const userId = session?.user?.id ?? null;
+  const { show: showToast } = useToast();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
 
@@ -348,6 +350,10 @@ export function AppointmentDetail({ id }: Props) {
               serviceId: reviewableServiceId,
               rating,
               comment,
+            });
+            showToast({
+              kind: 'success',
+              message: lang === 'es' ? 'Gracias por tu reseña' : 'Thanks for your review',
             });
           }}
           T={T}

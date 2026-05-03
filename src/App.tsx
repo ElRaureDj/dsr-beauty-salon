@@ -8,7 +8,7 @@ import { CartProvider } from './cart/CartProvider';
 import { UserProvider, useUser } from './data/UserProvider';
 import { CatalogProvider } from './data/CatalogProvider';
 import { AppointmentsProvider } from './data/AppointmentsProvider';
-import { CartDrawer, TabBar, TopChrome } from './components/atoms';
+import { CartDrawer, TabBar, ToastProvider, TopChrome } from './components/atoms';
 import type { RouteName, TabId } from './types';
 
 import { AdminApp } from './admin/AdminApp';
@@ -211,20 +211,22 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <LangProvider initialLang="es">
-        <UserProvider>
-          <CatalogProvider>
-            <AppointmentsProvider>
-              <CartProvider>
-                <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
-                  <PrefsSync />
-                  <RootLayout onOnboardingDone={() => setSeen(true)} />
-                </RouterProvider>
-              </CartProvider>
-            </AppointmentsProvider>
-          </CatalogProvider>
-        </UserProvider>
-      </LangProvider>
+      <ToastProvider>
+        <LangProvider initialLang="es">
+          <UserProvider>
+            <CatalogProvider>
+              <AppointmentsProvider>
+                <CartProvider>
+                  <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
+                    <PrefsSync />
+                    <RootLayout onOnboardingDone={() => setSeen(true)} />
+                  </RouterProvider>
+                </CartProvider>
+              </AppointmentsProvider>
+            </CatalogProvider>
+          </UserProvider>
+        </LangProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }
