@@ -7,8 +7,10 @@
 import { supabase } from './supabase';
 import type {
   Address,
+  Appointment,
   Artisan,
   ArtisanSchedule,
+  ArtisanScheduleDay,
   CartItem,
   CategoryId,
   Combo,
@@ -611,15 +613,18 @@ export interface DbProfile {
   joined: string;
   preferred_artisans: string[];
   is_admin: boolean;
+  theme: 'noir' | 'marbre';
+  preferred_lang: 'es' | 'en';
 }
+
+const PROFILE_COLS =
+  'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin, theme, preferred_lang';
 
 /** Lee el profile del user actual (owner). RLS bloquea acceso a otros. */
 export async function fetchMyProfile(): Promise<DbProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select(
-      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin',
-    )
+    .select(PROFILE_COLS)
     .maybeSingle();
   if (error) throw error;
   return data as DbProfile | null;
@@ -630,7 +635,15 @@ export async function fetchMyProfile(): Promise<DbProfile | null> {
  * visits/spent vienen del backend (admin/transacciones), no del cliente.
  */
 export type ProfileUpdate = Partial<
-  Pick<DbProfile, 'full_name' | 'display_name' | 'avatar_url' | 'preferred_artisans'>
+  Pick<
+    DbProfile,
+    | 'full_name'
+    | 'display_name'
+    | 'avatar_url'
+    | 'preferred_artisans'
+    | 'theme'
+    | 'preferred_lang'
+  >
 >;
 
 export async function updateMyProfile(
@@ -641,9 +654,7 @@ export async function updateMyProfile(
     .from('profiles')
     .update(updates)
     .eq('id', userId)
-    .select(
-      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin',
-    )
+    .select(PROFILE_COLS)
     .maybeSingle();
   if (error) throw error;
   return data as DbProfile | null;
@@ -863,6 +874,24 @@ export async function deletePromo(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Incrementa atómicamente promo.used_count si la promo es válida.
+ * Wrapper sobre la RPC `increment_promo_use` (security definer, ver 0009).
+ *
+ * - Devuelve true si se incrementó.
+ * - Devuelve false si la promo no existe / está inactiva / agotada / expirada.
+ *   (En esos casos, el customer ya recibió el descuento — el caller decide
+ *   qué hacer; en práctica solo loggeamos.)
+ */
+export async function incrementPromoUse(code: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('increment_promo_use', {
+    promo_code: code,
+  });
+  if (error) throw error;
+  // La RPC devuelve un setof — si está vacío, no se incrementó.
+  return Array.isArray(data) && data.length > 0;
+}
+
 // ---------- Product Stocks ----------
 
 interface DbProductStock {
@@ -902,28 +931,52 @@ export async function upsertProductStock(
   if (error) throw error;
 }
 
-// ---------- Artisan Schedules ----------
+// ---------- Artisan Schedules (per-day) ----------
+// Schema: artisan_schedule_days(artisan_id, weekday) PK, cada row con su
+// propio start/end e is_working. Migration 0008 reemplazó la tabla vieja
+// `artisan_schedules` (working_days jsonb + un único start/end).
 
-interface DbArtisanSchedule {
+const WEEKDAYS: WeekDay[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+interface DbArtisanScheduleDay {
   artisan_id: string;
-  working_days: Record<WeekDay, boolean>;
+  weekday: WeekDay;
+  is_working: boolean;
   start_time: string;
   end_time: string;
+}
+
+function defaultDay(weekday: WeekDay): ArtisanScheduleDay {
+  return {
+    weekday,
+    isWorking: weekday !== 'sun',
+    startTime: '10:00',
+    endTime: '20:00',
+  };
+}
+
+function emptyWeek(): Record<WeekDay, ArtisanScheduleDay> {
+  return Object.fromEntries(
+    WEEKDAYS.map((wd) => [wd, defaultDay(wd)]),
+  ) as Record<WeekDay, ArtisanScheduleDay>;
 }
 
 export async function fetchArtisanSchedules(): Promise<
   Record<string, ArtisanSchedule>
 > {
   const { data, error } = await supabase
-    .from('artisan_schedules')
-    .select('artisan_id, working_days, start_time, end_time');
+    .from('artisan_schedule_days')
+    .select('artisan_id, weekday, is_working, start_time, end_time');
   if (error) throw error;
+
   const out: Record<string, ArtisanSchedule> = {};
-  for (const row of data as DbArtisanSchedule[]) {
-    out[row.artisan_id] = {
-      artisanId: row.artisan_id,
-      workingDays: row.working_days,
-      // Postgres time -> 'HH:MM:SS'. Recortamos a 'HH:MM' para coincidir con TS.
+  for (const row of (data ?? []) as DbArtisanScheduleDay[]) {
+    if (!out[row.artisan_id]) {
+      out[row.artisan_id] = { artisanId: row.artisan_id, days: emptyWeek() };
+    }
+    out[row.artisan_id].days[row.weekday] = {
+      weekday: row.weekday,
+      isWorking: row.is_working,
       startTime: row.start_time.slice(0, 5),
       endTime: row.end_time.slice(0, 5),
     };
@@ -931,17 +984,22 @@ export async function fetchArtisanSchedules(): Promise<
   return out;
 }
 
-export async function upsertArtisanSchedule(
+/** Upsert de UNA entrada (artisan, weekday). Mucho más granular que antes. */
+export async function upsertArtisanScheduleDay(
   artisanId: string,
-  fields: Partial<ArtisanSchedule>,
+  weekday: WeekDay,
+  fields: Partial<Omit<ArtisanScheduleDay, 'weekday'>>,
 ): Promise<void> {
-  const update: Record<string, unknown> = { artisan_id: artisanId };
-  if (fields.workingDays !== undefined) update.working_days = fields.workingDays;
+  const update: Record<string, unknown> = {
+    artisan_id: artisanId,
+    weekday,
+  };
+  if (fields.isWorking !== undefined) update.is_working = fields.isWorking;
   if (fields.startTime !== undefined) update.start_time = fields.startTime;
   if (fields.endTime !== undefined) update.end_time = fields.endTime;
   const { error } = await supabase
-    .from('artisan_schedules')
-    .upsert(update, { onConflict: 'artisan_id' });
+    .from('artisan_schedule_days')
+    .upsert(update, { onConflict: 'artisan_id,weekday' });
   if (error) throw error;
 }
 
@@ -1083,10 +1141,11 @@ interface DbReview {
   date: string;
   response: string | null;
   response_date: string | null;
+  user_id: string | null;
 }
 
 const REVIEW_COLS =
-  'id, customer_name, artisan_id, service_id, rating, comment, date, response, response_date';
+  'id, customer_name, artisan_id, service_id, rating, comment, date, response, response_date, user_id';
 
 function mapReview(row: DbReview): Review {
   return {
@@ -1099,6 +1158,7 @@ function mapReview(row: DbReview): Review {
     date: row.date,
     response: row.response ?? undefined,
     responseDate: row.response_date ?? undefined,
+    userId: row.user_id ?? undefined,
   };
 }
 
@@ -1109,6 +1169,37 @@ export async function fetchReviews(): Promise<Review[]> {
     .order('date', { ascending: false });
   if (error) throw error;
   return (data as DbReview[]).map(mapReview);
+}
+
+/**
+ * Crea una reseña del cliente actual. RLS valida auth.uid() = user_id (0010).
+ * El id es generado client-side; date defaults a hoy.
+ */
+export async function createReview(input: {
+  userId: string;
+  customerName: string;
+  artisanId: string;
+  serviceId: string;
+  rating: number;
+  comment: string;
+}): Promise<Review> {
+  const id = `rv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const { data, error } = await supabase
+    .from('reviews')
+    .insert({
+      id,
+      user_id: input.userId,
+      customer_name: input.customerName,
+      artisan_id: input.artisanId,
+      service_id: input.serviceId,
+      rating: input.rating,
+      comment: input.comment,
+      date: new Date().toISOString().slice(0, 10),
+    })
+    .select(REVIEW_COLS)
+    .single();
+  if (error) throw error;
+  return mapReview(data as DbReview);
 }
 
 export async function respondToReview(
@@ -1333,6 +1424,259 @@ export async function clearPendingBookings(userId: string): Promise<void> {
     .delete()
     .eq('user_id', userId);
   if (error) throw error;
+}
+
+// ---------- Admin: vista cross-user de pending_bookings ----------
+// Solo accesible para users con is_admin = true (RLS lo enforce vía
+// pending_bookings_admin_select en migration 0007). Combina los bookings
+// con info del profile dueño para mostrar nombre/email del cliente.
+
+export interface AdminPendingBookingRow extends PendingBooking {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  userAvatarUrl: string | null;
+}
+
+export async function fetchAllPendingBookingsForAdmin(): Promise<
+  AdminPendingBookingRow[]
+> {
+  const { data, error } = await supabase
+    .from('pending_bookings')
+    .select(PENDING_BOOKING_COLS)
+    .order('date', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as DbPendingBooking[];
+  if (rows.length === 0) return [];
+
+  // Segundo round trip: profiles de los users implicados. Más simple que
+  // un join cross-schema (pending_bookings → auth.users vs profiles).
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const { data: profiles, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, display_name, email, avatar_url')
+    .in('id', userIds);
+  if (pErr) throw pErr;
+  const profileMap = new Map<
+    string,
+    {
+      full_name: string | null;
+      display_name: string | null;
+      email: string | null;
+      avatar_url: string | null;
+    }
+  >();
+  for (const p of (profiles ?? []) as Array<{
+    id: string;
+    full_name: string | null;
+    display_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+  }>) {
+    profileMap.set(p.id, {
+      full_name: p.full_name,
+      display_name: p.display_name,
+      email: p.email,
+      avatar_url: p.avatar_url,
+    });
+  }
+
+  return rows.map((row): AdminPendingBookingRow => {
+    const base = mapPendingBooking(row);
+    const prof = profileMap.get(row.user_id);
+    return {
+      ...base,
+      userId: row.user_id,
+      userName: prof?.display_name ?? prof?.full_name ?? null,
+      userEmail: prof?.email ?? null,
+      userAvatarUrl: prof?.avatar_url ?? null,
+    };
+  });
+}
+
+// ---------- Appointments (confirmadas) ----------
+// Tabla nueva en migration 0012. Las pending_bookings se convierten a
+// appointments via la RPC confirm_checkout (0013) cuando el customer
+// pasa por CheckoutSuccess autenticado.
+
+type DbAppointmentStatus = 'confirmed' | 'completed' | 'cancelled';
+
+interface DbAppointment {
+  id: string;
+  user_id: string;
+  service_ids: string[];
+  artisan_id: string;
+  date: string;
+  time: string;
+  total: number;
+  duration: number;
+  notes: string | null;
+  variant: 'standard' | 'premium' | 'custom' | null;
+  addon_product_ids: string[];
+  combo_id: string | null;
+  discount_pct: number | null;
+  status: DbAppointmentStatus;
+  points_earned: number;
+}
+
+const APPOINTMENT_COLS =
+  'id, user_id, service_ids, artisan_id, date, time, total, duration, notes, variant, addon_product_ids, combo_id, discount_pct, status, points_earned';
+
+/**
+ * Mapea una row de DB al shape Appointment del frontend.
+ * El status DB ('confirmed' | 'completed' | 'cancelled') colapsa a
+ * 'confirmed' | 'past' para el customer:
+ *   - completed → past
+ *   - confirmed con date pasada → past (la cita ya pasó pero admin no la marcó)
+ *   - confirmed con date >= today → confirmed
+ *   - cancelled → null (filtramos antes de llamar)
+ */
+function mapAppointment(row: DbAppointment): Appointment {
+  const today = new Date().toISOString().slice(0, 10);
+  const isPastByDate = row.date < today;
+  const status: 'confirmed' | 'past' =
+    row.status === 'completed' || (row.status === 'confirmed' && isPastByDate)
+      ? 'past'
+      : 'confirmed';
+  return {
+    id: row.id,
+    date: row.date,
+    time: row.time,
+    services: row.service_ids,
+    artisan: row.artisan_id,
+    status,
+    total: Number(row.total),
+    duration: row.duration,
+    notes_es: row.notes ?? undefined,
+    variant: row.variant ?? undefined,
+    addonProductIds:
+      row.addon_product_ids.length > 0 ? row.addon_product_ids : undefined,
+    comboId: row.combo_id ?? undefined,
+    discountPct: row.discount_pct ?? undefined,
+    pointsEarned: row.points_earned,
+  };
+}
+
+/** Citas del user actual. Excluye cancelled — el customer no las ve. */
+export async function fetchMyAppointments(): Promise<Appointment[]> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(APPOINTMENT_COLS)
+    .neq('status', 'cancelled')
+    .order('date', { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as DbAppointment[]).map(mapAppointment);
+}
+
+/**
+ * Convierte el cart actual en appointments + decrementa stock + suma
+ * points/visits/spent. Atómico vía RPC SECURITY DEFINER (0013).
+ * Devuelve los IDs de las nuevas appointments.
+ */
+export async function confirmCheckout(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('confirm_checkout');
+  if (error) throw error;
+  return ((data ?? []) as Array<{ appointment_id: string }>).map(
+    (r) => r.appointment_id,
+  );
+}
+
+/**
+ * Cancela una cita propia. Si está en el futuro, hace rollback de
+ * points/visits/spent. RPC SECURITY DEFINER valida el caller (0013).
+ */
+export async function cancelAppointmentRpc(id: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_appointment', { appt_id: id });
+  if (error) throw error;
+}
+
+/** Slot ocupado de un artist (sin PII). Wrapper de la RPC taken_slots (0014). */
+export interface TakenSlot {
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  duration: number; // minutos
+}
+
+export async function fetchTakenSlots(
+  artisanId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<TakenSlot[]> {
+  const { data, error } = await supabase.rpc('taken_slots', {
+    p_artisan_id: artisanId,
+    p_from: fromDate,
+    p_to: toDate,
+  });
+  if (error) throw error;
+  // La RPC devuelve slot_date/slot_time/slot_duration porque date/time son
+  // palabras reservadas en RETURNS TABLE de Postgres (ver 0014).
+  return ((data ?? []) as Array<{
+    slot_date: string;
+    slot_time: string;
+    slot_duration: number;
+  }>).map((row) => ({
+    date: row.slot_date,
+    time: row.slot_time.slice(0, 5),
+    duration: row.slot_duration,
+  }));
+}
+
+// Admin: vista cross-user de appointments. Mantiene el rawStatus para que
+// el admin pueda distinguir 'cancelled' de 'completed' (al customer le da
+// igual; al admin no).
+export interface AdminAppointmentRow extends Appointment {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  rawStatus: DbAppointmentStatus;
+}
+
+export async function fetchAllAppointmentsForAdmin(): Promise<
+  AdminAppointmentRow[]
+> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(APPOINTMENT_COLS)
+    .order('date', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as DbAppointment[];
+  if (rows.length === 0) return [];
+
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const { data: profiles, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, display_name, email')
+    .in('id', userIds);
+  if (pErr) throw pErr;
+
+  const profileMap = new Map<
+    string,
+    { full_name: string | null; display_name: string | null; email: string | null }
+  >();
+  for (const p of (profiles ?? []) as Array<{
+    id: string;
+    full_name: string | null;
+    display_name: string | null;
+    email: string | null;
+  }>) {
+    profileMap.set(p.id, {
+      full_name: p.full_name,
+      display_name: p.display_name,
+      email: p.email,
+    });
+  }
+
+  return rows.map((row): AdminAppointmentRow => {
+    const base = mapAppointment(row);
+    const prof = profileMap.get(row.user_id);
+    return {
+      ...base,
+      userId: row.user_id,
+      userName: prof?.display_name ?? prof?.full_name ?? null,
+      userEmail: prof?.email ?? null,
+      rawStatus: row.status,
+    };
+  });
 }
 
 // ---------- Service Variants ----------

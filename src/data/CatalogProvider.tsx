@@ -22,6 +22,7 @@ import {
   createCombo as dbCreateCombo,
   createProductDb,
   createPromo as dbCreatePromo,
+  createReview as dbCreateReview,
   createServiceDb,
   deleteArtisanDb,
   deleteCombo as dbDeleteCombo,
@@ -51,7 +52,7 @@ import {
   updateSalonSettings,
   updateServiceDb,
   updateTierRule as dbUpdateTierRule,
-  upsertArtisanSchedule,
+  upsertArtisanScheduleDay,
   upsertProductStock,
   upsertServiceVariant,
   type VariantConfigLite,
@@ -69,9 +70,11 @@ import {
   SEED_SCHEDULES,
   SEED_TIER_RULES,
 } from './admin-seeds';
+import { TIERS } from './tiers';
 import type {
   Artisan,
   ArtisanSchedule,
+  ArtisanScheduleDay,
   Combo,
   GiftCardDesign,
   NailLook,
@@ -81,7 +84,9 @@ import type {
   Review,
   SalonSettings,
   Service,
+  Tier,
   TierRule,
+  WeekDay,
 } from '../types';
 
 const PRODUCTS_KEY = 'dsr-admin-products-v1';
@@ -155,9 +160,15 @@ interface CatalogValue {
   deletePromo: (id: string) => void;
   // Horarios
   getSchedule: (artisanId: string) => ArtisanSchedule;
-  updateSchedule: (artisanId: string, fields: Partial<ArtisanSchedule>) => void;
+  updateScheduleDay: (
+    artisanId: string,
+    weekday: WeekDay,
+    fields: Partial<Omit<ArtisanScheduleDay, 'weekday'>>,
+  ) => void;
   // Reglas de tier
   getTierRules: () => TierRule[];
+  /** Tiers con thresholds reales de DB (id/name/color del seed estático). */
+  getTiers: () => Tier[];
   updateTierRule: (
     tierId: 'pearl' | 'gold' | 'noir',
     fields: Partial<Omit<TierRule, 'tierId'>>,
@@ -165,6 +176,16 @@ interface CatalogValue {
   // Reseñas
   getReviews: () => Review[];
   respondToReview: (id: string, response: string) => void;
+  /** Crea una reseña del cliente actual. Devuelve la review insertada
+   *  o un error string traducible si falló (ej: ya hay una para este par). */
+  createReview: (input: {
+    userId: string;
+    customerName: string;
+    artisanId: string;
+    serviceId: string;
+    rating: number;
+    comment: string;
+  }) => Promise<Review>;
   // Configuración del salón
   getSettings: () => SalonSettings;
   updateSettings: (fields: Partial<SalonSettings>) => void;
@@ -210,15 +231,23 @@ const CatalogCtx = createContext<CatalogValue>({
   getSchedule: (id) =>
     SEED_SCHEDULES[id] ?? {
       artisanId: id,
-      workingDays: { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: false },
-      startTime: '10:00',
-      endTime: '20:00',
+      days: {
+        mon: { weekday: 'mon', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        tue: { weekday: 'tue', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        wed: { weekday: 'wed', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        thu: { weekday: 'thu', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        fri: { weekday: 'fri', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        sat: { weekday: 'sat', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        sun: { weekday: 'sun', isWorking: false, startTime: '10:00', endTime: '20:00' },
+      },
     },
-  updateSchedule: noop,
+  updateScheduleDay: noop,
   getTierRules: () => SEED_TIER_RULES,
+  getTiers: () => TIERS,
   updateTierRule: noop,
   getReviews: () => SEED_REVIEWS,
   respondToReview: noop,
+  createReview: () => Promise.reject(new Error('CatalogProvider not mounted')),
   getSettings: () => DEFAULT_SETTINGS,
   updateSettings: noop,
 });
@@ -772,50 +801,68 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [queryClient, invalidatePromos],
   );
 
-  // Horarios — leídos desde DB.
-  const DEFAULT_WORKING_DAYS = useMemo(
+  // Horarios — schedule por día. Cada artist tiene 7 entries.
+  const DEFAULT_WEEK = useMemo<Record<WeekDay, ArtisanScheduleDay>>(
     () => ({
-      mon: true, tue: true, wed: true, thu: true,
-      fri: true, sat: true, sun: false,
+      mon: { weekday: 'mon', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      tue: { weekday: 'tue', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      wed: { weekday: 'wed', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      thu: { weekday: 'thu', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      fri: { weekday: 'fri', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      sat: { weekday: 'sat', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      sun: { weekday: 'sun', isWorking: false, startTime: '10:00', endTime: '20:00' },
     }),
     [],
   );
   const getSchedule = useCallback(
     (artisanId: string): ArtisanSchedule =>
-      dbSchedules[artisanId] ?? {
-        artisanId,
-        workingDays: DEFAULT_WORKING_DAYS,
-        startTime: '10:00',
-        endTime: '20:00',
-      },
-    [dbSchedules, DEFAULT_WORKING_DAYS],
+      dbSchedules[artisanId] ?? { artisanId, days: DEFAULT_WEEK },
+    [dbSchedules, DEFAULT_WEEK],
   );
-  const updateSchedule = useCallback(
-    (artisanId: string, fields: Partial<ArtisanSchedule>) => {
-      const current = dbSchedules[artisanId] ?? {
+  const updateScheduleDay = useCallback(
+    (
+      artisanId: string,
+      weekday: WeekDay,
+      fields: Partial<Omit<ArtisanScheduleDay, 'weekday'>>,
+    ) => {
+      const current = dbSchedules[artisanId] ?? { artisanId, days: DEFAULT_WEEK };
+      const currentDay = current.days[weekday];
+      const nextDay: ArtisanScheduleDay = { ...currentDay, ...fields, weekday };
+      const nextSchedule: ArtisanSchedule = {
         artisanId,
-        workingDays: DEFAULT_WORKING_DAYS,
-        startTime: '10:00',
-        endTime: '20:00',
+        days: { ...current.days, [weekday]: nextDay },
       };
-      const next = { ...current, ...fields };
       queryClient.setQueryData<Record<string, ArtisanSchedule>>(
         ['artisan_schedules'],
-        (prev) => ({ ...(prev ?? {}), [artisanId]: next }),
+        (prev) => ({ ...(prev ?? {}), [artisanId]: nextSchedule }),
       );
-      void upsertArtisanSchedule(artisanId, next)
+      void upsertArtisanScheduleDay(artisanId, weekday, fields)
         .then(() => invalidateSchedules())
         .catch((err) => {
           // eslint-disable-next-line no-console
-          console.error('[catalog] updateSchedule failed:', err);
+          console.error('[catalog] updateScheduleDay failed:', err);
           void invalidateSchedules();
         });
     },
-    [queryClient, invalidateSchedules, dbSchedules, DEFAULT_WORKING_DAYS],
+    [queryClient, invalidateSchedules, dbSchedules, DEFAULT_WEEK],
   );
 
   // Tier rules — leídos desde DB.
   const getTierRules = useCallback(() => dbTierRules, [dbTierRules]);
+
+  // Tiers derivados: id/name/color del seed estático, min real de tier_rules,
+  // max = min del siguiente tier (último = ∞ proxy 999_999).
+  const getTiers = useCallback((): Tier[] => {
+    const ruleByTier = new Map(dbTierRules.map((r) => [r.tierId, r]));
+    const ordered = TIERS.map((staticTier) => ({
+      ...staticTier,
+      min: ruleByTier.get(staticTier.id)?.thresholdPoints ?? staticTier.min,
+    })).sort((a, b) => a.min - b.min);
+    return ordered.map((t, i, arr) => ({
+      ...t,
+      max: arr[i + 1]?.min ?? 999_999,
+    }));
+  }, [dbTierRules]);
   const updateTierRule = useCallback(
     (
       tierId: 'pearl' | 'gold' | 'noir',
@@ -835,9 +882,27 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [queryClient, invalidateTierRules],
   );
 
-  // Reviews — leídos desde DB. respondToReview es la única mutation
-  // (admin contesta una reseña).
+  // Reviews — leídos desde DB. respondToReview es admin (contestar);
+  // createReview es customer (dejar reseña post-cita).
   const getReviews = useCallback(() => dbReviews, [dbReviews]);
+  const createReview = useCallback(
+    async (input: {
+      userId: string;
+      customerName: string;
+      artisanId: string;
+      serviceId: string;
+      rating: number;
+      comment: string;
+    }): Promise<Review> => {
+      // Sin optimistic — esperamos al insert real para tener id de DB.
+      // El user clickea "Enviar" y ve un loading; al volver, refetch
+      // muestra la review en la sección.
+      const created = await dbCreateReview(input);
+      await invalidateReviews();
+      return created;
+    },
+    [invalidateReviews],
+  );
   const respondToReview = useCallback(
     (id: string, response: string) => {
       const responseDate = new Date().toISOString().slice(0, 10);
@@ -915,11 +980,13 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       updatePromo,
       deletePromo,
       getSchedule,
-      updateSchedule,
+      updateScheduleDay,
       getTierRules,
+      getTiers,
       updateTierRule,
       getReviews,
       respondToReview,
+      createReview,
       getSettings,
       updateSettings,
     }),
@@ -960,11 +1027,13 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       updatePromo,
       deletePromo,
       getSchedule,
-      updateSchedule,
+      updateScheduleDay,
       getTierRules,
+      getTiers,
       updateTierRule,
       getReviews,
       respondToReview,
+      createReview,
       getSettings,
       updateSettings,
     ],

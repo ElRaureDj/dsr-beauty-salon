@@ -4,11 +4,13 @@
 import { ARTISANS, PRODUCTS } from './catalog';
 import type {
   ArtisanSchedule,
+  ArtisanScheduleDay,
   Promo,
   ProductStock,
   Review,
   SalonSettings,
   TierRule,
+  WeekDay,
 } from '../types';
 
 export const SEED_PRODUCT_STOCKS: Record<string, ProductStock> = Object.fromEntries(
@@ -52,24 +54,25 @@ export const SEED_PROMOS: Promo[] = [
   },
 ];
 
-const allTrue = {
-  mon: true,
-  tue: true,
-  wed: true,
-  thu: true,
-  fri: true,
-  sat: true,
-  sun: false,
-};
+const WEEKDAYS: WeekDay[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+function defaultSeedDay(weekday: WeekDay): ArtisanScheduleDay {
+  return {
+    weekday,
+    isWorking: weekday !== 'sun',
+    startTime: '10:00',
+    endTime: '20:00',
+  };
+}
 
 export const SEED_SCHEDULES: Record<string, ArtisanSchedule> = Object.fromEntries(
   ARTISANS.map((a) => [
     a.id,
     {
       artisanId: a.id,
-      workingDays: { ...allTrue },
-      startTime: '10:00',
-      endTime: '20:00',
+      days: Object.fromEntries(
+        WEEKDAYS.map((wd) => [wd, defaultSeedDay(wd)]),
+      ) as Record<WeekDay, ArtisanScheduleDay>,
     },
   ]),
 );

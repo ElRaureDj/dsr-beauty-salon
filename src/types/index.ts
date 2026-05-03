@@ -134,10 +134,22 @@ export interface Appointment {
   time: string; // HH:MM
   services: string[]; // service ids
   artisan: string; // artisan id
+  /** Status simplificado para customer UI. Mapeado en db.ts:
+   *  - DB 'confirmed' + date >= today → 'confirmed'
+   *  - DB 'confirmed' + date < today  → 'past' (no marcada como completed aún)
+   *  - DB 'completed'                 → 'past'
+   *  - DB 'cancelled'                 → ocultada del fetch customer
+   */
   status: 'confirmed' | 'past';
   total: number;
   duration: number;
   notes_es?: string;
+  /** Campos extendidos (vienen de DB; legacy USER mock no los tiene). */
+  variant?: 'standard' | 'premium' | 'custom';
+  addonProductIds?: string[];
+  comboId?: string;
+  discountPct?: number;
+  pointsEarned?: number;
 }
 
 export interface Story {
@@ -187,13 +199,20 @@ export interface Promo {
   active: boolean;
 }
 
-// Admin: agenda semanal por artista.
+// Admin: agenda semanal por artista — schedule por día.
+// Cada artista tiene 7 entradas (una por weekday), cada una con su propio
+// is_working / start_time / end_time. Permite horarios distintos por día.
 export type WeekDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export interface ArtisanScheduleDay {
+  weekday: WeekDay;
+  isWorking: boolean;
+  startTime: string; // HH:MM
+  endTime: string;   // HH:MM
+}
 export interface ArtisanSchedule {
   artisanId: string;
-  workingDays: Record<WeekDay, boolean>;
-  startTime: string; // HH:MM
-  endTime: string;
+  /** Indexado por weekday — siempre incluye los 7 días (working o no). */
+  days: Record<WeekDay, ArtisanScheduleDay>;
 }
 
 // Admin: reglas de puntos por tier.
@@ -214,6 +233,8 @@ export interface Review {
   date: string; // YYYY-MM-DD
   response?: string;
   responseDate?: string;
+  /** auth.uid del cliente que la dejó. Null para rows legacy/seed. */
+  userId?: string;
 }
 
 // Admin: configuración del salón.

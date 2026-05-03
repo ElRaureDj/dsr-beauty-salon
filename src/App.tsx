@@ -1,14 +1,15 @@
 // DSR Maison — App entry: theme + i18n + router + screens + iOS frame on desktop.
+import * as React from 'react';
 import { useEffect, useState } from 'react';
-import { LangProvider } from './i18n/LangProvider';
+import { LangProvider, useI18n } from './i18n/LangProvider';
 import { RouterProvider, useRouter } from './router/Router';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { CartProvider } from './cart/CartProvider';
-import { UserProvider } from './data/UserProvider';
+import { UserProvider, useUser } from './data/UserProvider';
 import { CatalogProvider } from './data/CatalogProvider';
 import { AppointmentsProvider } from './data/AppointmentsProvider';
 import { CartDrawer, TabBar, TopChrome } from './components/atoms';
-import type { TabId } from './types';
+import type { RouteName, TabId } from './types';
 
 import { AdminApp } from './admin/AdminApp';
 import { Auth } from './screens/Auth';
@@ -33,36 +34,37 @@ import { AppointmentDetail } from './screens/AppointmentDetail';
 import { PersonalInfo } from './screens/PersonalInfo';
 import { Addresses } from './screens/Addresses';
 
-// Routes that should hide the bottom tab bar
-const HIDE_TAB_ROUTES: ReadonlyArray<string> = [
-  'onboarding',
-  'auth',
-  'admin',
-  'service',
-  'artisan',
-  'product',
-  'bag',
-  'checkout-success',
-  'nail-look',
-  'gift-buy',
-  'gift-mine',
-  'profile',
-  'appointment',
-  'personal-info',
-  'addresses',
-];
-
-// Pantallas donde no tiene sentido el chrome top (avatar/cart):
-// onboarding y auth (no logueado), checkout-success (terminal con CTA propio),
-// profile (ya estás ahí — evita doble avatar), bag (ya estás en el carrito).
-const HIDE_CHROME_ROUTES: ReadonlyArray<string> = [
-  'onboarding',
-  'auth',
-  'admin',
-  'checkout-success',
-  'profile',
-  'bag',
-];
+// Configuración de chrome por route. Una sola tabla para evitar el footgun
+// de tener que mantener dos listas separadas (HIDE_TAB_ROUTES + HIDE_CHROME_
+// ROUTES). Para cada route inmersiva, declara qué piezas del chrome global
+// debe ocultar. Las routes que no aparecen aquí muestran tabs + chrome (default).
+//
+// hideTabs: oculta el TabBar inferior (5 tabs).
+// hideChrome: oculta el TopChrome (avatar + cart chip flotante).
+//
+// Las routes "tab root" (home, services, book, rewards, shop) NO aparecen
+// porque usan el chrome completo. Si agregas una pantalla nueva inmersiva,
+// agrégala aquí — si solo tocas una lista, la otra queda fuera de sync.
+type RouteChrome = { hideTabs?: true; hideChrome?: true };
+const ROUTE_CHROME: Partial<Record<RouteName, RouteChrome>> = {
+  onboarding: { hideTabs: true, hideChrome: true },
+  auth: { hideTabs: true, hideChrome: true },
+  admin: { hideTabs: true, hideChrome: true },
+  bag: { hideTabs: true, hideChrome: true },
+  'checkout-success': { hideTabs: true, hideChrome: true },
+  // Avatar+cart visibles pero sin tabs (immersive deep view).
+  service: { hideTabs: true },
+  artisan: { hideTabs: true },
+  product: { hideTabs: true },
+  'nail-look': { hideTabs: true },
+  'gift-buy': { hideTabs: true },
+  'gift-mine': { hideTabs: true },
+  appointment: { hideTabs: true },
+  'personal-info': { hideTabs: true },
+  addresses: { hideTabs: true },
+  // profile: avatar duplicado si chrome activo. Tabs ocultas también.
+  profile: { hideTabs: true, hideChrome: true },
+};
 
 function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
   const { route, go } = useRouter();
@@ -133,8 +135,9 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
 function FrameInner({ onOnboardingDone }: { onOnboardingDone: () => void }) {
   const T = useTheme();
   const { route, tab, go } = useRouter();
-  const showTabs = !HIDE_TAB_ROUTES.includes(route.name);
-  const showChrome = !HIDE_CHROME_ROUTES.includes(route.name);
+  const chrome = ROUTE_CHROME[route.name] ?? {};
+  const showTabs = !chrome.hideTabs;
+  const showChrome = !chrome.hideChrome;
   // El onboarding se considera terminado cuando además navegamos a 'home':
   // sin esto el estado `seen` cambia pero el router sigue en 'onboarding'.
   // Escribimos a localStorage directamente acá: si el usuario hizo "Ver bienvenida
@@ -214,6 +217,7 @@ export default function App() {
             <AppointmentsProvider>
               <CartProvider>
                 <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
+                  <PrefsSync />
                   <RootLayout onOnboardingDone={() => setSeen(true)} />
                 </RouterProvider>
               </CartProvider>
@@ -223,6 +227,59 @@ export default function App() {
       </LangProvider>
     </ThemeProvider>
   );
+}
+
+/**
+ * Sincroniza theme y lang entre la preferencia del profile (DB) y los
+ * providers locales. Lifecycle:
+ * - Primera vez que llega `profile` con sesión: si profile.theme/lang
+ *   difiere del estado local, aplicamos el del profile (la DB gana).
+ * - Después del initial sync: si el user cambia theme/lang localmente,
+ *   persistimos al profile.
+ * - Sin sesión: no hace nada — los providers usan su localStorage como
+ *   siempre.
+ *
+ * El ref `synced` distingue el primer fetch (DB → local) de los cambios
+ * subsecuentes (local → DB), evitando un loop al hidratar.
+ */
+function PrefsSync() {
+  const { profile, signedIn, updateProfile } = useUser();
+  const { name: theme, setTheme } = useTheme();
+  const { lang, setLang } = useI18n();
+  const syncedRef = React.useRef(false);
+
+  // Reset el flag cuando cambia la sesión (sign out → in con otro user).
+  React.useEffect(() => {
+    if (!signedIn) syncedRef.current = false;
+  }, [signedIn]);
+
+  // Initial sync: DB → local. Aplica una sola vez por sesión.
+  React.useEffect(() => {
+    if (!profile || syncedRef.current) return;
+    if (profile.theme && profile.theme !== theme) setTheme(profile.theme);
+    if (profile.preferred_lang && profile.preferred_lang !== lang) {
+      setLang(profile.preferred_lang);
+    }
+    syncedRef.current = true;
+    // Deliberadamente sin theme/lang en deps — sólo queremos correr
+    // cuando profile cambia (al fetch inicial).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
+  // Cambios locales post-sync: local → DB.
+  React.useEffect(() => {
+    if (!syncedRef.current || !profile) return;
+    const updates: { theme?: 'noir' | 'marbre'; preferred_lang?: 'es' | 'en' } = {};
+    if (profile.theme !== theme) updates.theme = theme;
+    if (profile.preferred_lang !== lang) updates.preferred_lang = lang;
+    if (Object.keys(updates).length === 0) return;
+    void updateProfile(updates).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[prefs-sync] persisting prefs failed:', err);
+    });
+  }, [theme, lang, profile, updateProfile]);
+
+  return null;
 }
 
 /**

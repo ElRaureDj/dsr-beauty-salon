@@ -14,6 +14,7 @@ import {
   Tiny,
 } from '../components/atoms';
 import { PERKS } from '../data/tiers';
+import { useCatalog } from '../data/CatalogProvider';
 import { useUserData } from '../data/useUserData';
 import { nextTier, tierFor } from '../data/helpers';
 import { useRouter } from '../router/Router';
@@ -22,9 +23,11 @@ export function Rewards() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getTiers } = useCatalog();
   const user = useUserData();
-  const tier = tierFor(user.points);
-  const next = nextTier(user.points);
+  const tiers = getTiers();
+  const tier = tierFor(user.points, tiers);
+  const next = nextTier(user.points, tiers);
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 

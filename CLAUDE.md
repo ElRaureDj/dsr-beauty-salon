@@ -18,16 +18,20 @@ Originalmente un bundle de Claude Design (HTML + JSX prototípico) que fue porta
 
 ## Estado actual
 
-- **Fase 1** (`phase1/original-code`) ✅ — mergeada en PR #1. App completa funcionando 100% con `localStorage`.
+- **Fase 1** (`phase1/original-code`) ✅ — mergeada en PR #1. App completa funcionando 100% con `localStorage`. Incluye desde el origen: promos en cart, reseñas en Service/Artisan, badge de bajo stock en Product, combo booking end-to-end con descuento.
 - **Fase 2** (`phase2/moving-online`) ✅ — mergeada en PR #2. Schema + seed inicial, cliente Supabase, magic-link auth real (PKCE), catálogo (products/services/artisans/nail_looks/gift_card_designs) leyendo desde DB con TanStack Query, profiles + `useUserData`, personal info editable, direcciones de envío US-only.
-- **Fase 7** (`phase2/conectando-con-el-exterior`, branch actual) ✅ — completada localmente, **no pusheada** todavía. 5 commits encima de main:
-  - `cfa1e6a` cart_items + pending_bookings session-aware con auto-merge guest → user al login.
-  - `d4e96bb` admin role real (`profile.is_admin`) reemplaza el PIN demo. `AdminGate.tsx` con 3 estados.
-  - `91d4b84` combos y promos al backend (mutations vía Supabase).
-  - `3d2abd3` stocks / schedules / tier_rules / reviews / settings / variants a DB.
-  - `b9c8562` products / services / artisans writes a Supabase. Cierra la migración del catálogo.
+- **Fase 7** (`phase2/conectando-con-el-exterior`) ✅ — mergeada en PR #3 (`f063a8e`). cart_items + pending_bookings session-aware (`cfa1e6a`), admin role real `profile.is_admin` (`d4e96bb`), combos/promos al backend (`91d4b84`), stocks/schedules/tier_rules/reviews/settings/variants a DB (`3d2abd3`), products/services/artisans writes a Supabase (`b9c8562`). Cerró la migración del catálogo.
+- **Fase 8** (`phase2/missing-details`, branch actual) 🚧 — fase grande de "missing details" abordando varios items de auditoría.
+  - **Cross-user admin reads** (`6c6988c`): AppointmentsSection y ReportsSection leen `pending_bookings` de todas las clientas vía RLS admin. Migration 0007. Nuevo `fetchAllPendingBookingsForAdmin()`.
+  - **Schedule per-day** (`5e5dd1b`): tabla `artisan_schedules` rediseñada a `artisan_schedule_days(artisan_id, weekday)`. UI por día. `buildSchedule()` consume schedule real.
+  - **Email template bilingüe** (`fe648e7`, footer ajustado en `5fdb285`): HTML inline DSR ES + EN.
+  - **Settings + tier thresholds → customer** (`13e34d7`): Onboarding/Auth leen `salon_settings`. Nuevo `getTiers()` combina TIERS estáticos + `tier_rules.thresholdPoints` real.
+  - **Promo usedCount RPC + fecha real** (`69e535f`): migration 0009 con `increment_promo_use(text)` SECURITY DEFINER. CheckoutSuccess incrementa al mount. `buildSchedule.startDate` ahora es `new Date()`.
+  - **Reseñas customer** (`a7486f3`): migration 0010 con `reviews.user_id` + policies + unique parcial. Atom `<RateStars>`. Modal en AppointmentDetail. Profile rows clickeables.
+  - **Theme + lang en profile** (`a15eb25`): migration 0011 con `profiles.theme` y `profiles.preferred_lang`. `<PrefsSync>` invisible en App.tsx orquesta DB ↔ providers (initial sync DB→local, cambios post-sync local→DB).
+  - **Appointments tabla real + checkout integrado**: migrations 0012 (tabla `appointments` con status + RLS own/admin) y 0013 (RPCs `confirm_checkout` y `cancel_appointment` SECURITY DEFINER). AppointmentsProvider session-aware: con sesión lee `appointments` via TanStack Query, sin sesión queda en USER mock. CheckoutSuccess autenticado llama confirm_checkout (atómico: pending → appointments + stock decrement + points/visits/spent + cleanup). cancel_appointment hace rollback de puntos si la cita era futura. Admin: AppointmentsSection unifica pending + confirmed con badges (EN CART / CONFIRMADA / COMPLETADA / CANCELADA). ReportsSection suma ambas fuentes (excluye cancelled).
 
-> Próxima acción sugerida: push de la rama + PR #3 a main, después configurar Vercel.
+> Próxima acción sugerida: aplicar migrations 0007–0013 en Supabase, pegar el template del magic link en el dashboard, y configurar Vercel.
 
 ---
 
@@ -71,6 +75,14 @@ VITE_SUPABASE_ANON_KEY=sb_publishable__fYtbk7SYClaJyNAWgXQLA_NUstNSl-
 4. `0004_addresses.sql` — `addresses` por user con índice único parcial `addresses_one_default_per_user`. RLS owner-only.
 5. `0005_cart_and_bookings.sql` — `cart_items` (unique user_id+product_id) + `pending_bookings` con FKs a artisans/services/combos.
 6. `0006_admin.sql` — flag `is_admin boolean` en profiles, helper `is_admin() returns boolean security definer stable`, write policies para todas las tablas administrables, hardening `profiles_update_own` para evitar self-promotion.
+7. `0007_admin_cross_user.sql` — admin SELECT en `pending_bookings` (vista global de citas) y `profiles` (nombre/email del cliente en cada row de admin). Las policies `_own` siguen vivas para customers.
+8. `0008_schedule_per_day.sql` — reemplaza `artisan_schedules` (working_days jsonb + un único start/end) por `artisan_schedule_days(artisan_id, weekday)` PK compuesta con `is_working` + `start_time` + `end_time` por día. Migra automáticamente las rows viejas y backfilla artistas sin schedule previo. Permite "lun 09-18, sáb 10-14, dom off" estilo agenda real.
+9. `0009_promo_use_rpc.sql` — RPC `increment_promo_use(text)` SECURITY DEFINER atómico. Valida active + maxUses + validUntil y hace UPDATE de `used_count`. Necesario porque RLS bloquea writes a `promos` para non-admins (0006). CheckoutSuccess la dispatcha al mount si había promo aplicada.
+10. `0010_reviews_customer.sql` — `reviews.user_id` (uuid → auth.users), INSERT/UPDATE/DELETE policies por user, unique parcial `(user_id, artisan_id, service_id)` para evitar duplicados. Las rows legacy/seed sin user_id no entran al constraint.
+11. `0011_profile_preferences.sql` — `profiles.theme` ('noir'|'marbre') y `profiles.preferred_lang` ('es'|'en') con defaults + check constraints. Las RLS `_own` existentes ya cubren las nuevas columnas.
+12. `0012_appointments.sql` — tabla `appointments` (uuid PK, status `confirmed/completed/cancelled`, `points_earned` snapshot, FKs a artisans y combos). RLS `_own` para customer + admin SELECT cross-user + admin UPDATE para gestión.
+13. `0013_checkout_rpcs.sql` — dos RPCs SECURITY DEFINER: `confirm_checkout()` mueve pending_bookings → appointments + decrementa stock + suma points/visits/spent (con multiplier del tier actual del user) + limpia bolsa, todo atómico. `cancel_appointment(uuid)` valida ownership + actualiza status + hace rollback de points/visits/spent si la cita era futura.
+14. `0014_taken_slots_rpc.sql` — RPC `taken_slots(artisan_id, from, to)` SECURITY DEFINER. Devuelve `(date, time, duration)` para todos los pending_bookings + appointments confirmadas del artist en el rango, SIN exponer PII (user_id, services, total). Booking customer la consume para marcar slots ocupados — evita doble booking.
 
 ### Promoverse a admin
 
@@ -225,27 +237,24 @@ supabase/migrations/        # 0001..0006.sql
 
 ## Pendientes (orden recomendado)
 
-### Inmediato — cerrar Fase 7
-- **Push `phase2/conectando-con-el-exterior` y abrir PR #3 a main.** Branch tiene 5 commits sin pushear. URL para el PR: `https://github.com/ElRaureDj/dsr-beauty-salon/compare/main...phase2/conectando-con-el-exterior?expand=1`.
+### Inmediato — cerrar Fase 8
+- **Aplicar migration `0007_admin_cross_user.sql`** en el proyecto Supabase (SQL Editor). Sin esto, el admin no puede leer `pending_bookings` / `profiles` de otras clientas y AppointmentsSection / ReportsSection se ven vacíos.
+- **Push `phase2/missing-details` y abrir PR #4 a main.**
 
 ### Deploy a Vercel
 - Importar repo en Vercel + configurar las 2 env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) en Production + Preview + Development.
 - En Supabase Dashboard → Authentication → URL Configuration: agregar el dominio de Vercel (`https://<proj>.vercel.app`) como Site URL y `https://<proj>-*.vercel.app/**` en Redirect URLs.
 - **Configurar SMTP custom** (Resend free tier 100/día, SendGrid o Postmark) para reemplazar el provider default de Supabase. El default tiene rate limit de ~4 emails/hora — bloquea testing con varios users.
 
-### Customer surfaces que faltan integrar
-- **Aplicar promociones al cart** — input "código de cupón" en Bag/CartDrawer, descuento computado server-side o validado contra promos activos.
-- **Mostrar reseñas** en ServiceDetail / ArtisanProfile (la DB ya las tiene).
-- **Indicar bajo stock** en ProductDetail (si `stock <= lowStockAt`, badge visible).
-- **Booking de combo completo** — actualmente click en combo → `go('book', {service: combo.serviceIds[0]})`. Falta multi-service en Booking + aplicar el descuento del combo + reflejarlo en PendingBooking.
-
 ### Auth & pagos reales
 - **OAuth Apple / Google con Supabase** — fase grande, requiere Apple Developer ($99/año) + Google Cloud Console. Los botones ya están en `Auth.tsx` con badge "Próximamente".
 - **Apple Pay real** — Stripe SetupIntent + Apple Pay JS, integrado en Bag y GiftBuy.
 - **WhatsApp login** — opcional, requiere provider externo (Wassenger, Twilio Verify) porque Supabase no lo trae nativo.
 
-### Admin — falta migrar a queries DB cross-user
-- **AppointmentsSection y ReportsSection** — todavía leen del USER mock. Para producción necesitan agregaciones reales (`select count, sum, group by month`) sobre `pending_bookings` + appointments confirmados de todos los users.
+### Admin — siguientes mejoras
+- **Tabla `appointments` real** con status `confirmed` / `completed` / `cancelled`. Hoy las "citas" del admin son `pending_bookings` (lo que el customer guarda en su bolsa). Para reservas confirmadas con pago real, hace falta un nuevo concepto.
+- **Cancelar / mover cita desde admin** — agregar policies admin UPDATE/DELETE en `pending_bookings` y CTAs en AppointmentsSection.
+- **Export CSV** de la vista de reportes para contabilidad mensual.
 
 ### Calidad
 - **Tests** — Vitest + React Testing Library; helpers deterministas y CatalogProvider son buenos primeros candidatos. No hay ninguno todavía.

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import { Body, Btn, Eyebrow, H1, Ico, Icons, Img } from '../components/atoms';
+import { useCatalog } from '../data/CatalogProvider';
 import { IMG_ONBOARDING } from '../data/images';
 
 interface Slide {
@@ -15,11 +16,13 @@ interface Slide {
 export function Onboarding({ onDone }: { onDone: () => void }) {
   const T = useTheme();
   const { t, lang, setLang } = useI18n();
+  const { getSettings } = useCatalog();
+  const settings = getSettings();
   const [step, setStep] = useState(0);
 
   const slides: Slide[] = [
     {
-      title: lang === 'es' ? 'Su belleza, nuestro arte.' : 'Your beauty, our craft.',
+      title: lang === 'es' ? `${settings.tagline_es}.` : `${settings.tagline_en}.`,
       sub:
         lang === 'es'
           ? 'Una maison de belleza concebida para mujeres con criterio. Cada gesto, una firma.'

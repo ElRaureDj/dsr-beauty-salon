@@ -207,6 +207,19 @@ export interface I18nStrings {
   appointmentNotFound: string;
   appointmentPastBadge: string;
   appointmentBackHome: string;
+  reviewLeaveCta: string;
+  reviewYoursBadge: string;
+  reviewModalTitle: string;
+  reviewModalSub: string;
+  reviewRatingLabel: string;
+  reviewCommentLabel: string;
+  reviewCommentPlaceholder: string;
+  reviewSubmit: string;
+  reviewSubmitting: string;
+  reviewCancel: string;
+  reviewSignInRequired: string;
+  reviewErrorDuplicate: string;
+  reviewErrorGeneric: string;
   authSendLink: string;
   authSending: string;
   authMagicLinkTitle: string;
@@ -461,6 +474,19 @@ export const I18N: Record<Lang, I18nStrings> = {
     appointmentNotFound: 'Cita no encontrada',
     appointmentPastBadge: 'Pasada',
     appointmentBackHome: 'Volver al inicio',
+    reviewLeaveCta: 'Dejar reseña',
+    reviewYoursBadge: 'Tu reseña',
+    reviewModalTitle: '¿Cómo fue tu visita?',
+    reviewModalSub: 'Tu opinión guía a otras clientas y ayuda a la maison a crecer.',
+    reviewRatingLabel: 'Tu valoración',
+    reviewCommentLabel: 'Cuéntanos más',
+    reviewCommentPlaceholder: 'Comparte tu experiencia (opcional)',
+    reviewSubmit: 'Enviar reseña',
+    reviewSubmitting: 'Enviando...',
+    reviewCancel: 'Cancelar',
+    reviewSignInRequired: 'Inicia sesión para dejar una reseña',
+    reviewErrorDuplicate: 'Ya dejaste una reseña para este servicio con esta artista.',
+    reviewErrorGeneric: 'No pudimos guardar tu reseña. Intenta de nuevo.',
     authSendLink: 'Enviar enlace de acceso',
     authSending: 'Enviando...',
     authMagicLinkTitle: 'Te enviamos un enlace',
@@ -711,6 +737,19 @@ export const I18N: Record<Lang, I18nStrings> = {
     appointmentNotFound: 'Appointment not found',
     appointmentPastBadge: 'Past',
     appointmentBackHome: 'Back to home',
+    reviewLeaveCta: 'Leave a review',
+    reviewYoursBadge: 'Your review',
+    reviewModalTitle: 'How was your visit?',
+    reviewModalSub: 'Your feedback guides other clients and helps the maison grow.',
+    reviewRatingLabel: 'Your rating',
+    reviewCommentLabel: 'Tell us more',
+    reviewCommentPlaceholder: 'Share your experience (optional)',
+    reviewSubmit: 'Submit review',
+    reviewSubmitting: 'Submitting...',
+    reviewCancel: 'Cancel',
+    reviewSignInRequired: 'Sign in to leave a review',
+    reviewErrorDuplicate: 'You already reviewed this service with this artisan.',
+    reviewErrorGeneric: 'We could not save your review. Please try again.',
     authSendLink: 'Send sign-in link',
     authSending: 'Sending...',
     authMagicLinkTitle: 'We sent you a link',

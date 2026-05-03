@@ -1,5 +1,6 @@
 // DSR — Booking flow (5 steps): services → artisan → date/time → review → confirmed
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import {
@@ -25,6 +26,7 @@ import { buildSchedule } from '../data/helpers';
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
+import { fetchTakenSlots } from '../lib/db';
 import type { CategoryId } from '../types';
 
 interface BookingProps {
@@ -44,8 +46,15 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
-  const { getProduct, getService, getArtisan, getCombo, getAllServices, getAllArtisans } =
-    useCatalog();
+  const {
+    getProduct,
+    getService,
+    getArtisan,
+    getCombo,
+    getAllServices,
+    getAllArtisans,
+    getSchedule,
+  } = useCatalog();
 
   // Si venimos del drawer con un booking guardado, pre-cargamos el state.
   // Buscamos UNA sola vez (al mount) para no perder edits si la lista cambia.
@@ -92,7 +101,10 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
     if (!editingSnapshot) return 0;
     // Match the saved date contra el schedule actual del artista.
     // Si el día ya pasó (no está en la ventana de 7 días), default a 0.
-    const sch = buildSchedule(editingSnapshot.artisanId);
+    const sch = buildSchedule(
+      editingSnapshot.artisanId,
+      getSchedule(editingSnapshot.artisanId),
+    );
     const idx = sch.findIndex(
       (d) => d.date.toISOString().slice(0, 10) === editingSnapshot.date,
     );
@@ -150,7 +162,34 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const arObj = artisan && artisan !== 'any' ? getArtisan(artisan) : null;
   // For "any", just pick the first eligible artisan deterministically
   const effectiveArtisan = arObj ?? (artisan === 'any' ? eligibleArtisans[0] : null);
-  const schedule = effectiveArtisan ? buildSchedule(effectiveArtisan.id) : [];
+
+  // Slots ya tomados por el artist en los próximos 7 días — vienen de la
+  // RPC taken_slots (pending_bookings + appointments confirmadas, sin PII).
+  // Si la query falla o aún carga, takenSlots queda undefined y buildSchedule
+  // cae al modo seed-determinista (preserva la demo guest sin llamadas DB).
+  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const endKey = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().slice(0, 10);
+  }, []);
+  const { data: takenSlots } = useQuery({
+    queryKey: ['taken-slots', effectiveArtisan?.id, todayKey, endKey],
+    queryFn: () =>
+      effectiveArtisan
+        ? fetchTakenSlots(effectiveArtisan.id, todayKey, endKey)
+        : Promise.resolve([]),
+    enabled: !!effectiveArtisan,
+    staleTime: 30_000,
+  });
+
+  const schedule = effectiveArtisan
+    ? buildSchedule(
+        effectiveArtisan.id,
+        getSchedule(effectiveArtisan.id),
+        takenSlots,
+      )
+    : [];
 
   const stepsLabels = [
     t('selectService'),
