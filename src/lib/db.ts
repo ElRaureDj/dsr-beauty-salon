@@ -612,15 +612,18 @@ export interface DbProfile {
   joined: string;
   preferred_artisans: string[];
   is_admin: boolean;
+  theme: 'noir' | 'marbre';
+  preferred_lang: 'es' | 'en';
 }
+
+const PROFILE_COLS =
+  'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin, theme, preferred_lang';
 
 /** Lee el profile del user actual (owner). RLS bloquea acceso a otros. */
 export async function fetchMyProfile(): Promise<DbProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select(
-      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin',
-    )
+    .select(PROFILE_COLS)
     .maybeSingle();
   if (error) throw error;
   return data as DbProfile | null;
@@ -631,7 +634,15 @@ export async function fetchMyProfile(): Promise<DbProfile | null> {
  * visits/spent vienen del backend (admin/transacciones), no del cliente.
  */
 export type ProfileUpdate = Partial<
-  Pick<DbProfile, 'full_name' | 'display_name' | 'avatar_url' | 'preferred_artisans'>
+  Pick<
+    DbProfile,
+    | 'full_name'
+    | 'display_name'
+    | 'avatar_url'
+    | 'preferred_artisans'
+    | 'theme'
+    | 'preferred_lang'
+  >
 >;
 
 export async function updateMyProfile(
@@ -642,9 +653,7 @@ export async function updateMyProfile(
     .from('profiles')
     .update(updates)
     .eq('id', userId)
-    .select(
-      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin',
-    )
+    .select(PROFILE_COLS)
     .maybeSingle();
   if (error) throw error;
   return data as DbProfile | null;

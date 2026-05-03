@@ -1,10 +1,11 @@
 // DSR Maison — App entry: theme + i18n + router + screens + iOS frame on desktop.
+import * as React from 'react';
 import { useEffect, useState } from 'react';
-import { LangProvider } from './i18n/LangProvider';
+import { LangProvider, useI18n } from './i18n/LangProvider';
 import { RouterProvider, useRouter } from './router/Router';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { CartProvider } from './cart/CartProvider';
-import { UserProvider } from './data/UserProvider';
+import { UserProvider, useUser } from './data/UserProvider';
 import { CatalogProvider } from './data/CatalogProvider';
 import { AppointmentsProvider } from './data/AppointmentsProvider';
 import { CartDrawer, TabBar, TopChrome } from './components/atoms';
@@ -214,6 +215,7 @@ export default function App() {
             <AppointmentsProvider>
               <CartProvider>
                 <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
+                  <PrefsSync />
                   <RootLayout onOnboardingDone={() => setSeen(true)} />
                 </RouterProvider>
               </CartProvider>
@@ -223,6 +225,59 @@ export default function App() {
       </LangProvider>
     </ThemeProvider>
   );
+}
+
+/**
+ * Sincroniza theme y lang entre la preferencia del profile (DB) y los
+ * providers locales. Lifecycle:
+ * - Primera vez que llega `profile` con sesión: si profile.theme/lang
+ *   difiere del estado local, aplicamos el del profile (la DB gana).
+ * - Después del initial sync: si el user cambia theme/lang localmente,
+ *   persistimos al profile.
+ * - Sin sesión: no hace nada — los providers usan su localStorage como
+ *   siempre.
+ *
+ * El ref `synced` distingue el primer fetch (DB → local) de los cambios
+ * subsecuentes (local → DB), evitando un loop al hidratar.
+ */
+function PrefsSync() {
+  const { profile, signedIn, updateProfile } = useUser();
+  const { name: theme, setTheme } = useTheme();
+  const { lang, setLang } = useI18n();
+  const syncedRef = React.useRef(false);
+
+  // Reset el flag cuando cambia la sesión (sign out → in con otro user).
+  React.useEffect(() => {
+    if (!signedIn) syncedRef.current = false;
+  }, [signedIn]);
+
+  // Initial sync: DB → local. Aplica una sola vez por sesión.
+  React.useEffect(() => {
+    if (!profile || syncedRef.current) return;
+    if (profile.theme && profile.theme !== theme) setTheme(profile.theme);
+    if (profile.preferred_lang && profile.preferred_lang !== lang) {
+      setLang(profile.preferred_lang);
+    }
+    syncedRef.current = true;
+    // Deliberadamente sin theme/lang en deps — sólo queremos correr
+    // cuando profile cambia (al fetch inicial).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
+  // Cambios locales post-sync: local → DB.
+  React.useEffect(() => {
+    if (!syncedRef.current || !profile) return;
+    const updates: { theme?: 'noir' | 'marbre'; preferred_lang?: 'es' | 'en' } = {};
+    if (profile.theme !== theme) updates.theme = theme;
+    if (profile.preferred_lang !== lang) updates.preferred_lang = lang;
+    if (Object.keys(updates).length === 0) return;
+    void updateProfile(updates).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[prefs-sync] persisting prefs failed:', err);
+    });
+  }, [theme, lang, profile, updateProfile]);
+
+  return null;
 }
 
 /**
