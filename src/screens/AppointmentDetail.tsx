@@ -87,9 +87,12 @@ export function AppointmentDetail({ id }: Props) {
   );
 
   const handleReschedule = () => {
+    // Pasamos replacesAppointment para que Booking, al confirmar, cancele
+    // la cita vieja y evite que el customer termine con dos appointments.
     go('book', {
       service: appt.services[0],
       artisan: appt.artisan,
+      replacesAppointment: appt.id,
     });
   };
 

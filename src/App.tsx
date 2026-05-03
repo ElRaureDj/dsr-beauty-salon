@@ -124,6 +124,7 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
             variant: params.variant,
             addonProductIds: params.addonProductIds,
             combo: params.combo,
+            replacesAppointment: params.replacesAppointment,
           }}
           editingBookingId={params.editingBooking}
         />

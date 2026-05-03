@@ -348,6 +348,10 @@ export interface RouteParams {
   combo?: string;
   /** Documento legal a abrir: cancellation | terms | privacy. */
   doc?: string;
+  /** Cuando el flow de Booking se abre como "reagendar" de una cita
+   *  existente, lleva el id. Al guardar en la bolsa, esa cita se cancela
+   *  para evitar duplicados. */
+  replacesAppointment?: string;
 }
 
 export interface Route {

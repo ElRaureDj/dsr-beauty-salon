@@ -1,6 +1,7 @@
 // DSR — Booking flow (5 steps): services → artisan → date/time → review → confirmed
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '../data/UserProvider';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import {
@@ -26,7 +27,7 @@ import { buildSchedule } from '../data/helpers';
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
-import { fetchTakenSlots } from '../lib/db';
+import { cancelAppointmentRpc, fetchTakenSlots } from '../lib/db';
 import { buildIcsEvent, downloadIcs } from '../data/calendar';
 import type { CategoryId } from '../types';
 
@@ -38,6 +39,9 @@ interface BookingProps {
     variant?: 'standard' | 'premium' | 'custom';
     addonProductIds?: string[];
     combo?: string;
+    /** Si está, este flow es "reagendar". Al guardar la nueva en bolsa,
+     *  se cancela esa appointment para evitar duplicados. */
+    replacesAppointment?: string;
   };
   editingBookingId?: string;
 }
@@ -47,6 +51,8 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
+  const { session } = useUser();
+  const queryClient = useQueryClient();
   const {
     getProduct,
     getService,
@@ -1176,6 +1182,22 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                     comboId: comboStillValid ? comboId ?? undefined : undefined,
                     discountPct: comboStillValid && discountPct > 0 ? discountPct : undefined,
                   });
+                  // Si este flow es "reagendar" de una appointment existente,
+                  // cancelarla en background. La RPC ya hace rollback de
+                  // points/visits/spent si era futura. Solo si hay sesión —
+                  // la appointment vive en DB.
+                  if (initial.replacesAppointment && session?.user) {
+                    void cancelAppointmentRpc(initial.replacesAppointment)
+                      .then(() =>
+                        queryClient.invalidateQueries({
+                          queryKey: ['my-appointments', session.user.id],
+                        }),
+                      )
+                      .catch((err) => {
+                        // eslint-disable-next-line no-console
+                        console.error('[booking] cancel old appointment failed:', err);
+                      });
+                  }
                   cart.openDrawer();
                   go('home');
                 }}
