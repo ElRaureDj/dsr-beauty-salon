@@ -1,5 +1,5 @@
 // DSR — Rewards (3D tilt membership card · stats · progress · perks · gift cards · redeem)
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import {
@@ -15,16 +15,40 @@ import {
 } from '../components/atoms';
 import { PERKS } from '../data/tiers';
 import { useCatalog } from '../data/CatalogProvider';
+import { useUser } from '../data/UserProvider';
 import { useUserData } from '../data/useUserData';
 import { nextTier, tierFor } from '../data/helpers';
 import { useRouter } from '../router/Router';
+import { fetchMyReferralCode } from '../lib/db';
+import { useToast } from '../components/atoms';
 
 export function Rewards() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const { getTiers } = useCatalog();
+  const { getTiers, getSettings } = useCatalog();
+  const { signedIn } = useUser();
+  const { show: showToast } = useToast();
   const user = useUserData();
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  // Fetch del código del user actual cuando hay sesión.
+  useEffect(() => {
+    if (!signedIn) {
+      setReferralCode(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchMyReferralCode()
+      .then((code) => {
+        if (!cancelled) setReferralCode(code);
+      })
+      .catch(() => {
+        /* silent */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn]);
   const tiers = getTiers();
   const tier = tierFor(user.points, tiers);
   const next = nextTier(user.points, tiers);
@@ -476,6 +500,139 @@ export function Rewards() {
           })}
         </div>
       </div>
+
+      {/* Programa de amigas — solo si signed in (necesita código del user). */}
+      {signedIn && referralCode && (
+        <div style={{ padding: '40px 22px 0' }}>
+          <Eyebrow>
+            {lang === 'es' ? 'Programa Amigas' : 'Friends Program'}
+          </Eyebrow>
+          <H2 style={{ marginTop: 6, fontSize: 22, fontStyle: 'italic' }}>
+            {lang === 'es' ? 'Invita y gana' : 'Invite and earn'}
+          </H2>
+          <Body
+            muted
+            style={{ marginTop: 8, fontSize: 13, lineHeight: 1.55 }}
+          >
+            {lang === 'es'
+              ? 'Comparte tu código. Cuando una amiga reserve su primera cita, ambas reciben un crédito de €50.'
+              : 'Share your code. When a friend books her first visit, you both get a $50 credit.'}
+          </Body>
+          <div
+            style={{
+              marginTop: 16,
+              padding: 18,
+              background: T.surface,
+              boxShadow: `inset 0 0 0 1px ${T.gold}33`,
+              display: 'flex',
+              gap: 14,
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <Tiny
+                muted
+                style={{
+                  fontSize: 9,
+                  letterSpacing: 1.4,
+                  display: 'block',
+                  marginBottom: 4,
+                }}
+              >
+                {lang === 'es' ? 'TU CÓDIGO' : 'YOUR CODE'}
+              </Tiny>
+              <div
+                style={{
+                  fontFamily: T.mono,
+                  fontSize: 20,
+                  letterSpacing: 4,
+                  color: T.gold,
+                  fontWeight: 600,
+                }}
+              >
+                {referralCode}
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                const settings = getSettings();
+                const shareText =
+                  lang === 'es'
+                    ? `Te invito a ${settings.name}. Usa mi código ${referralCode} en tu primera cita.`
+                    : `Join me at ${settings.name}. Use my code ${referralCode} on your first visit.`;
+                const shareUrl = `${window.location.origin}/?ref=${referralCode}`;
+                if (navigator.share) {
+                  try {
+                    await navigator.share({
+                      title: settings.name,
+                      text: shareText,
+                      url: shareUrl,
+                    });
+                    return;
+                  } catch {
+                    /* user cancelled — fallback al copy. */
+                  }
+                }
+                try {
+                  await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+                  showToast({
+                    kind: 'success',
+                    message:
+                      lang === 'es'
+                        ? 'Copiado al portapapeles'
+                        : 'Copied to clipboard',
+                  });
+                } catch {
+                  showToast({
+                    kind: 'error',
+                    message:
+                      lang === 'es'
+                        ? 'No pudimos compartir'
+                        : 'Could not share',
+                  });
+                }
+              }}
+              className="dsr-press"
+              style={{
+                background: T.gold,
+                border: 'none',
+                cursor: 'pointer',
+                padding: '12px 18px',
+                color: T.bg,
+                fontFamily: T.sans,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: 1.4,
+                textTransform: 'uppercase',
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+              }}
+            >
+              <Ico size={12} color={T.bg}>
+                {Icons.share}
+              </Ico>
+              {lang === 'es' ? 'Compartir' : 'Share'}
+            </button>
+          </div>
+          <Tiny
+            muted
+            style={{
+              marginTop: 10,
+              fontSize: 10,
+              letterSpacing: 0.4,
+              textTransform: 'none',
+              fontStyle: 'italic',
+              fontFamily: T.serif,
+              display: 'block',
+            }}
+          >
+            {lang === 'es'
+              ? 'El crédito se acredita cuando tu invitada complete su primera cita.'
+              : 'Credit posts when your friend completes her first visit.'}
+          </Tiny>
+        </div>
+      )}
     </Screen>
   );
 }

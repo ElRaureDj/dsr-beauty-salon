@@ -1679,6 +1679,44 @@ export async function fetchAllAppointmentsForAdmin(): Promise<
   });
 }
 
+// ---------- Referrals ----------
+// Tabla + helpers en migration 0017.
+
+/** Devuelve el código de referido del user actual (estable, derivado del uuid). */
+export async function fetchMyReferralCode(): Promise<string> {
+  const { data, error } = await supabase.rpc('my_referral_code');
+  if (error) throw error;
+  return String(data ?? '');
+}
+
+/** Registra un referrer al signup del user actual. Idempotente
+ *  (PK en referee_id evita duplicados). Si el código no resuelve a
+ *  ningún referrer válido, devuelve false. */
+export async function registerReferral(
+  refereeId: string,
+  code: string,
+): Promise<boolean> {
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return false;
+  const { data: refId, error: lookupErr } = await supabase.rpc(
+    'find_referrer_by_code',
+    { p_code: trimmed },
+  );
+  if (lookupErr) throw lookupErr;
+  if (!refId || refId === refereeId) return false; // propio código no cuenta
+  const { error } = await supabase
+    .from('referrals')
+    .insert({
+      referrer_id: refId,
+      referee_id: refereeId,
+      code: trimmed,
+      status: 'pending',
+    });
+  // Ignoramos unique violation (ya estaba registrado).
+  if (error && (error as { code?: string }).code !== '23505') throw error;
+  return true;
+}
+
 // ---------- Favorites (per-user) ----------
 // Tres tipos de target: product / service / artisan. Tabla en migration 0016.
 
