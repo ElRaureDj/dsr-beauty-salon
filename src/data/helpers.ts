@@ -100,8 +100,11 @@ export function buildSchedule(
 
   for (let d = 0; d < 7; d++) {
     const date = new Date(startDate);
-    date.setDate(date.getDate() + d);
-    const wd = JS_DAY_TO_WEEKDAY[date.getDay()];
+    // UTC para evitar drift por timezone del sistema/browser. dateKey y
+    // weekday deben venir de la misma zona, sino se rompen los matches
+    // contra takenSlots (cuyas fechas son YYYY-MM-DD plain).
+    date.setUTCDate(date.getUTCDate() + d);
+    const wd = JS_DAY_TO_WEEKDAY[date.getUTCDay()];
     const cfg = schedule?.days[wd];
     const isWorking = cfg?.isWorking ?? (wd !== 'sun');
     const startMin = hhmmToMinutes(cfg?.startTime ?? '10:00');
@@ -130,8 +133,8 @@ export function buildSchedule(
 
     days.push({
       date,
-      day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-      dayNum: date.getDate(),
+      day: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
+      dayNum: date.getUTCDate(),
       dayOff: !isWorking,
       slots,
     });
