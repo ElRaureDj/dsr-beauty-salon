@@ -1,0 +1,18 @@
+{
+  "name": "DSR · Maison de Beauté",
+  "short_name": "DSR",
+  "description": "Tu maison de belleza en Miami. Reserva con tu artista, sigue su agenda y disfruta perks reservados a las nuestras.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0908",
+  "theme_color": "#0A0908",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
