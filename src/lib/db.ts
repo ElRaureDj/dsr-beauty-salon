@@ -1335,6 +1335,74 @@ export async function clearPendingBookings(userId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ---------- Admin: vista cross-user de pending_bookings ----------
+// Solo accesible para users con is_admin = true (RLS lo enforce vía
+// pending_bookings_admin_select en migration 0007). Combina los bookings
+// con info del profile dueño para mostrar nombre/email del cliente.
+
+export interface AdminPendingBookingRow extends PendingBooking {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  userAvatarUrl: string | null;
+}
+
+export async function fetchAllPendingBookingsForAdmin(): Promise<
+  AdminPendingBookingRow[]
+> {
+  const { data, error } = await supabase
+    .from('pending_bookings')
+    .select(PENDING_BOOKING_COLS)
+    .order('date', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as DbPendingBooking[];
+  if (rows.length === 0) return [];
+
+  // Segundo round trip: profiles de los users implicados. Más simple que
+  // un join cross-schema (pending_bookings → auth.users vs profiles).
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const { data: profiles, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, display_name, email, avatar_url')
+    .in('id', userIds);
+  if (pErr) throw pErr;
+  const profileMap = new Map<
+    string,
+    {
+      full_name: string | null;
+      display_name: string | null;
+      email: string | null;
+      avatar_url: string | null;
+    }
+  >();
+  for (const p of (profiles ?? []) as Array<{
+    id: string;
+    full_name: string | null;
+    display_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+  }>) {
+    profileMap.set(p.id, {
+      full_name: p.full_name,
+      display_name: p.display_name,
+      email: p.email,
+      avatar_url: p.avatar_url,
+    });
+  }
+
+  return rows.map((row): AdminPendingBookingRow => {
+    const base = mapPendingBooking(row);
+    const prof = profileMap.get(row.user_id);
+    return {
+      ...base,
+      userId: row.user_id,
+      userName: prof?.display_name ?? prof?.full_name ?? null,
+      userEmail: prof?.email ?? null,
+      userAvatarUrl: prof?.avatar_url ?? null,
+    };
+  });
+}
+
 // ---------- Service Variants ----------
 
 interface DbServiceVariant {

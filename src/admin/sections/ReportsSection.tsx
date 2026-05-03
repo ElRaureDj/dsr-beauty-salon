@@ -1,58 +1,122 @@
-// DSR Admin — Reportes.
-// KPIs computados de los datos existentes (USER.appointments + reviews + cart).
+// DSR Admin — Reportes (cross-user).
+// KPIs reales sobre pending_bookings de todas las clientas (RLS admin SELECT).
+// Reseñas y settings vienen de CatalogProvider (ya DB-backed).
 
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useI18n } from '../../i18n/LangProvider';
-import { Body, Eyebrow, H1, H3, Ico, Icons, Tiny } from '../../components/atoms';
+import { Body, Eyebrow, H1, H3, Tiny } from '../../components/atoms';
 import { useCatalog } from '../../data/CatalogProvider';
-import { useCart } from '../../cart/CartProvider';
-import { USER } from '../../data/user';
+import {
+  fetchAllPendingBookingsForAdmin,
+  type AdminPendingBookingRow,
+} from '../../lib/db';
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Devuelve los últimos N meses (incluyendo el actual) como YYYY-MM, ordenados
+// del más antiguo al más reciente.
+function lastNMonths(n: number): string[] {
+  const now = new Date();
+  const out: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    out.push(ym);
+  }
+  return out;
+}
+
+function monthLabel(ym: string, lang: 'es' | 'en'): string {
+  const [yy, mm] = ym.split('-');
+  const d = new Date(Number(yy), Number(mm) - 1, 1);
+  return d.toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
+    month: 'short',
+    year: '2-digit',
+  });
+}
 
 export function ReportsSection() {
   const T = useTheme();
   const { lang } = useI18n();
   const { getReviews, getAllArtisans, getAllServices, getSettings } = useCatalog();
-  const cart = useCart();
   const settings = getSettings();
   const reviews = getReviews();
   const artisans = getAllArtisans();
   const services = getAllServices();
 
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['admin-pending-bookings'],
+    queryFn: fetchAllPendingBookingsForAdmin,
+    initialData: [] as AdminPendingBookingRow[],
+    initialDataUpdatedAt: 0,
+    staleTime: 30_000,
+  });
+
+  const today = todayISO();
+  const all = data ?? [];
+
   // ─── KPIs ────────────────────────────────────────────────────────────
-  const allAppointments = USER.appointments;
-  const past = allAppointments.filter((a) => a.status === 'past');
-  const confirmed = allAppointments.filter((a) => a.status === 'confirmed');
-  const pending = cart.pendingBookings;
+  const upcoming = all.filter((b) => b.date >= today);
+  const past = all.filter((b) => b.date < today);
 
-  const revenuePast = past.reduce((s, a) => s + a.total, 0);
-  const revenueConfirmed = confirmed.reduce((s, a) => s + a.total, 0);
-  const revenuePending = pending.reduce((s, a) => s + a.total, 0);
-  const revenueTotal = revenuePast + revenueConfirmed + revenuePending;
+  const revenueUpcoming = upcoming.reduce((s, b) => s + b.total, 0);
+  const revenuePast = past.reduce((s, b) => s + b.total, 0);
+  const revenueTotal = revenueUpcoming + revenuePast;
 
-  const avgTicket = past.length > 0 ? revenuePast / past.length : 0;
+  const avgTicket = all.length > 0 ? revenueTotal / all.length : 0;
+  const uniqueClients = new Set(all.map((b) => b.userId)).size;
+
   const avgRating =
-    reviews.reduce((a, r) => a + r.rating, 0) / Math.max(1, reviews.length);
+    reviews.length > 0
+      ? reviews.reduce((a, r) => a + r.rating, 0) / reviews.length
+      : 0;
   const lowRatingCount = reviews.filter((r) => r.rating <= 3).length;
 
-  // Top artist by appointments + revenue
-  const artistStats = artisans.map((ar) => {
-    const ap = allAppointments.filter((x) => x.artisan === ar.id);
-    return {
-      artisan: ar,
-      count: ap.length,
-      revenue: ap.reduce((s, a) => s + a.total, 0),
-    };
-  });
-  const topArtist = artistStats.sort((a, b) => b.revenue - a.revenue)[0];
+  // Top artist por revenue (sólo entre los que tienen al menos 1 cita).
+  const artistStats = useMemo(() => {
+    const stats = artisans.map((ar) => {
+      const ap = all.filter((b) => b.artisanId === ar.id);
+      return {
+        artisan: ar,
+        count: ap.length,
+        revenue: ap.reduce((s, b) => s + b.total, 0),
+      };
+    });
+    return stats.filter((s) => s.count > 0).sort((a, b) => b.revenue - a.revenue);
+  }, [artisans, all]);
+  const topArtist = artistStats[0] ?? null;
 
-  // Top service by appointments
-  const serviceStats = services.map((s) => {
-    const count = allAppointments.filter((a) => a.services.includes(s.id)).length;
-    return { service: s, count };
-  });
-  const topServices = serviceStats.filter((s) => s.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+  // Top services por count.
+  const topServices = useMemo(() => {
+    const stats = services.map((s) => ({
+      service: s,
+      count: all.filter((b) => b.serviceIds.includes(s.id)).length,
+    }));
+    return stats.filter((s) => s.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+  }, [services, all]);
 
-  const cur = settings.currency === 'EUR' ? '€' : settings.currency === 'USD' ? '$' : settings.currency;
+  // Revenue por mes — últimos 6 meses.
+  const months = useMemo(() => {
+    const buckets = new Map<string, { count: number; revenue: number }>();
+    for (const ym of lastNMonths(6)) {
+      buckets.set(ym, { count: 0, revenue: 0 });
+    }
+    for (const b of all) {
+      const ym = b.date.slice(0, 7);
+      const cur = buckets.get(ym);
+      if (!cur) continue; // fuera del rango de los últimos 6 meses
+      cur.count += 1;
+      cur.revenue += b.total;
+    }
+    return Array.from(buckets.entries()).map(([ym, v]) => ({ ym, ...v }));
+  }, [all]);
+
+  const maxMonthRevenue = months.reduce((m, x) => Math.max(m, x.revenue), 0);
+
+  const cur =
+    settings.currency === 'EUR' ? '€' : settings.currency === 'USD' ? '$' : settings.currency;
 
   return (
     <div>
@@ -63,10 +127,27 @@ export function ReportsSection() {
         </H1>
         <Body muted style={{ marginTop: 8, fontSize: 13, maxWidth: 540 }}>
           {lang === 'es'
-            ? 'KPIs del salón calculados sobre el periodo visible. Demo — datos limitados a la cuenta actual.'
-            : 'Salon KPIs computed over the visible period. Demo — data limited to the current account.'}
+            ? 'KPIs calculados sobre todas las reservas guardadas en el cart de las clientas. Excluye visitas pasadas no registradas y compras de productos.'
+            : 'KPIs computed over all bookings saved in client carts. Excludes legacy past visits and product orders.'}
         </Body>
       </div>
+
+      {isError && (
+        <div
+          style={{
+            padding: 14,
+            marginBottom: 16,
+            background: T.surface,
+            boxShadow: `inset 0 0 0 1px ${T.rouge}55`,
+          }}
+        >
+          <Tiny style={{ color: T.rouge, letterSpacing: 0.3, textTransform: 'none' }}>
+            {lang === 'es'
+              ? 'No se pudieron cargar los datos de reservas.'
+              : 'Could not load booking data.'}
+          </Tiny>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div
@@ -75,19 +156,30 @@ export function ReportsSection() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
           gap: 12,
           marginBottom: 28,
+          opacity: isLoading && all.length === 0 ? 0.5 : 1,
         }}
       >
         <KPICard
           T={T}
           label={lang === 'es' ? 'Ingresos totales' : 'Total revenue'}
           value={`${cur}${revenueTotal}`}
-          hint={`${past.length} ${lang === 'es' ? 'pasadas' : 'past'} + ${confirmed.length} ${lang === 'es' ? 'confirmadas' : 'confirmed'} + ${pending.length} ${lang === 'es' ? 'en cart' : 'in cart'}`}
+          hint={`${past.length} ${lang === 'es' ? 'pasadas' : 'past'} + ${upcoming.length} ${lang === 'es' ? 'próximas' : 'upcoming'}`}
         />
         <KPICard
           T={T}
           label={lang === 'es' ? 'Ticket promedio' : 'Avg ticket'}
           value={`${cur}${Math.round(avgTicket)}`}
-          hint={`${past.length} ${lang === 'es' ? 'visitas pasadas' : 'past visits'}`}
+          hint={`${all.length} ${lang === 'es' ? 'reservas en total' : 'bookings total'}`}
+        />
+        <KPICard
+          T={T}
+          label={lang === 'es' ? 'Clientas únicas' : 'Unique clients'}
+          value={uniqueClients.toLocaleString()}
+          hint={
+            lang === 'es'
+              ? 'con al menos 1 reserva'
+              : 'with at least 1 booking'
+          }
         />
         <KPICard
           T={T}
@@ -95,12 +187,6 @@ export function ReportsSection() {
           value={`${avgRating.toFixed(2)} ★`}
           hint={`${reviews.length} ${lang === 'es' ? 'totales' : 'total'} · ${lowRatingCount} ${lang === 'es' ? 'bajas' : 'low'}`}
           accent={lowRatingCount > 0 ? T.rouge : undefined}
-        />
-        <KPICard
-          T={T}
-          label={lang === 'es' ? 'Tier de la cuenta' : 'Account tier'}
-          value={USER.points.toLocaleString()}
-          hint={`${lang === 'es' ? 'puntos · visitas' : 'points · visits'}: ${USER.visits}`}
         />
       </div>
 
@@ -113,17 +199,21 @@ export function ReportsSection() {
           marginBottom: 28,
         }}
       >
-        {topArtist && (
-          <div
-            style={{
-              background: T.surface,
-              boxShadow: `inset 0 0 0 1px ${T.line}`,
-              padding: 22,
-            }}
-          >
-            <Tiny muted style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: 1.2, display: 'block' }}>
-              {lang === 'es' ? 'TOP ARTISTA' : 'TOP ARTISAN'}
-            </Tiny>
+        <div
+          style={{
+            background: T.surface,
+            boxShadow: `inset 0 0 0 1px ${T.line}`,
+            padding: 22,
+          }}
+        >
+          <Tiny muted style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: 1.2, display: 'block' }}>
+            {lang === 'es' ? 'TOP ARTISTA' : 'TOP ARTISAN'}
+          </Tiny>
+          {!topArtist ? (
+            <Body muted style={{ marginTop: 12, fontSize: 12 }}>
+              {lang === 'es' ? 'Sin reservas todavía.' : 'No bookings yet.'}
+            </Body>
+          ) : (
             <div
               style={{
                 marginTop: 12,
@@ -184,8 +274,8 @@ export function ReportsSection() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div
           style={{
@@ -244,33 +334,82 @@ export function ReportsSection() {
         </div>
       </div>
 
-      {/* Notice */}
+      {/* Cohorte mensual: revenue por mes (últimos 6) */}
       <div
         style={{
-          padding: 18,
-          background: `${T.gold}11`,
-          boxShadow: `inset 0 0 0 1px ${T.gold}33`,
-          display: 'flex',
-          gap: 12,
-          alignItems: 'flex-start',
+          background: T.surface,
+          boxShadow: `inset 0 0 0 1px ${T.line}`,
+          padding: 22,
+          marginBottom: 28,
         }}
       >
-        <Ico size={14} color={T.gold} stroke={1.4}>
-          {Icons.sparkle}
-        </Ico>
-        <Tiny
-          style={{
-            fontSize: 12,
-            letterSpacing: 0.3,
-            textTransform: 'none',
-            color: T.textMuted,
-            lineHeight: 1.5,
-          }}
-        >
-          {lang === 'es'
-            ? 'Demo: KPIs calculados sobre la cuenta de Camila + cart actual. En producción se computan sobre todas las clientas con cohortes mensuales y exports a CSV.'
-            : 'Demo: KPIs computed over Camila\'s account + current cart. In production they\'d span all customers with monthly cohorts and CSV exports.'}
+        <Tiny muted style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: 1.2, display: 'block' }}>
+          {lang === 'es' ? 'INGRESOS POR MES' : 'REVENUE BY MONTH'}
         </Tiny>
+        {maxMonthRevenue === 0 ? (
+          <Body muted style={{ marginTop: 12, fontSize: 12 }}>
+            {lang === 'es' ? 'Sin datos en los últimos 6 meses.' : 'No data in the last 6 months.'}
+          </Body>
+        ) : (
+          <div
+            style={{
+              marginTop: 18,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(6, 1fr)',
+              gap: 10,
+              alignItems: 'end',
+              minHeight: 120,
+            }}
+          >
+            {months.map((m) => {
+              const h = maxMonthRevenue > 0 ? (m.revenue / maxMonthRevenue) * 100 : 0;
+              return (
+                <div
+                  key={m.ym}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ width: '100%', height: 80, display: 'flex', alignItems: 'flex-end' }}>
+                    <div
+                      style={{
+                        width: '100%',
+                        height: `${h}%`,
+                        minHeight: m.revenue > 0 ? 4 : 0,
+                        background: `linear-gradient(180deg, ${T.gold}, ${T.goldDeep})`,
+                        transition: 'height 0.4s ease',
+                      }}
+                    />
+                  </div>
+                  <Tiny
+                    style={{
+                      fontSize: 9,
+                      letterSpacing: 0.3,
+                      textTransform: 'none',
+                      color: T.textMuted,
+                    }}
+                  >
+                    {monthLabel(m.ym, lang)}
+                  </Tiny>
+                  <Tiny
+                    style={{
+                      fontFamily: T.mono,
+                      fontSize: 10,
+                      color: m.revenue > 0 ? T.gold : T.textFaint,
+                      textTransform: 'none',
+                      letterSpacing: 0.3,
+                    }}
+                  >
+                    {cur}{m.revenue}
+                  </Tiny>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

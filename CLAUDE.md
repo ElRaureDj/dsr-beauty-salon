@@ -18,16 +18,12 @@ Originalmente un bundle de Claude Design (HTML + JSX prototípico) que fue porta
 
 ## Estado actual
 
-- **Fase 1** (`phase1/original-code`) ✅ — mergeada en PR #1. App completa funcionando 100% con `localStorage`.
+- **Fase 1** (`phase1/original-code`) ✅ — mergeada en PR #1. App completa funcionando 100% con `localStorage`. Incluye desde el origen: promos en cart, reseñas en Service/Artisan, badge de bajo stock en Product, combo booking end-to-end con descuento.
 - **Fase 2** (`phase2/moving-online`) ✅ — mergeada en PR #2. Schema + seed inicial, cliente Supabase, magic-link auth real (PKCE), catálogo (products/services/artisans/nail_looks/gift_card_designs) leyendo desde DB con TanStack Query, profiles + `useUserData`, personal info editable, direcciones de envío US-only.
-- **Fase 7** (`phase2/conectando-con-el-exterior`, branch actual) ✅ — completada localmente, **no pusheada** todavía. 5 commits encima de main:
-  - `cfa1e6a` cart_items + pending_bookings session-aware con auto-merge guest → user al login.
-  - `d4e96bb` admin role real (`profile.is_admin`) reemplaza el PIN demo. `AdminGate.tsx` con 3 estados.
-  - `91d4b84` combos y promos al backend (mutations vía Supabase).
-  - `3d2abd3` stocks / schedules / tier_rules / reviews / settings / variants a DB.
-  - `b9c8562` products / services / artisans writes a Supabase. Cierra la migración del catálogo.
+- **Fase 7** (`phase2/conectando-con-el-exterior`) ✅ — mergeada en PR #3 (`f063a8e`). cart_items + pending_bookings session-aware (`cfa1e6a`), admin role real `profile.is_admin` (`d4e96bb`), combos/promos al backend (`91d4b84`), stocks/schedules/tier_rules/reviews/settings/variants a DB (`3d2abd3`), products/services/artisans writes a Supabase (`b9c8562`). Cerró la migración del catálogo.
+- **Fase 8** (`phase2/missing-details`, branch actual) 🚧 — admin cross-user reads. AppointmentsSection y ReportsSection ahora leen `pending_bookings` de todas las clientas vía RLS admin. Migration `0007_admin_cross_user.sql` agrega policies admin SELECT en `pending_bookings` y `profiles`. Nuevo fetcher `fetchAllPendingBookingsForAdmin()` en `db.ts` combina bookings + profile (nombre/email del cliente). ReportsSection: KPIs reales (revenue total/upcoming/past, ticket medio, clientas únicas, top artist, top services, breakdown 6 meses).
 
-> Próxima acción sugerida: push de la rama + PR #3 a main, después configurar Vercel.
+> Próxima acción sugerida: aplicar migration 0007 en Supabase, verificar manualmente con varios users + bookings, y configurar Vercel.
 
 ---
 
@@ -71,6 +67,7 @@ VITE_SUPABASE_ANON_KEY=sb_publishable__fYtbk7SYClaJyNAWgXQLA_NUstNSl-
 4. `0004_addresses.sql` — `addresses` por user con índice único parcial `addresses_one_default_per_user`. RLS owner-only.
 5. `0005_cart_and_bookings.sql` — `cart_items` (unique user_id+product_id) + `pending_bookings` con FKs a artisans/services/combos.
 6. `0006_admin.sql` — flag `is_admin boolean` en profiles, helper `is_admin() returns boolean security definer stable`, write policies para todas las tablas administrables, hardening `profiles_update_own` para evitar self-promotion.
+7. `0007_admin_cross_user.sql` — admin SELECT en `pending_bookings` (vista global de citas) y `profiles` (nombre/email del cliente en cada row de admin). Las policies `_own` siguen vivas para customers.
 
 ### Promoverse a admin
 
@@ -225,27 +222,24 @@ supabase/migrations/        # 0001..0006.sql
 
 ## Pendientes (orden recomendado)
 
-### Inmediato — cerrar Fase 7
-- **Push `phase2/conectando-con-el-exterior` y abrir PR #3 a main.** Branch tiene 5 commits sin pushear. URL para el PR: `https://github.com/ElRaureDj/dsr-beauty-salon/compare/main...phase2/conectando-con-el-exterior?expand=1`.
+### Inmediato — cerrar Fase 8
+- **Aplicar migration `0007_admin_cross_user.sql`** en el proyecto Supabase (SQL Editor). Sin esto, el admin no puede leer `pending_bookings` / `profiles` de otras clientas y AppointmentsSection / ReportsSection se ven vacíos.
+- **Push `phase2/missing-details` y abrir PR #4 a main.**
 
 ### Deploy a Vercel
 - Importar repo en Vercel + configurar las 2 env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) en Production + Preview + Development.
 - En Supabase Dashboard → Authentication → URL Configuration: agregar el dominio de Vercel (`https://<proj>.vercel.app`) como Site URL y `https://<proj>-*.vercel.app/**` en Redirect URLs.
 - **Configurar SMTP custom** (Resend free tier 100/día, SendGrid o Postmark) para reemplazar el provider default de Supabase. El default tiene rate limit de ~4 emails/hora — bloquea testing con varios users.
 
-### Customer surfaces que faltan integrar
-- **Aplicar promociones al cart** — input "código de cupón" en Bag/CartDrawer, descuento computado server-side o validado contra promos activos.
-- **Mostrar reseñas** en ServiceDetail / ArtisanProfile (la DB ya las tiene).
-- **Indicar bajo stock** en ProductDetail (si `stock <= lowStockAt`, badge visible).
-- **Booking de combo completo** — actualmente click en combo → `go('book', {service: combo.serviceIds[0]})`. Falta multi-service en Booking + aplicar el descuento del combo + reflejarlo en PendingBooking.
-
 ### Auth & pagos reales
 - **OAuth Apple / Google con Supabase** — fase grande, requiere Apple Developer ($99/año) + Google Cloud Console. Los botones ya están en `Auth.tsx` con badge "Próximamente".
 - **Apple Pay real** — Stripe SetupIntent + Apple Pay JS, integrado en Bag y GiftBuy.
 - **WhatsApp login** — opcional, requiere provider externo (Wassenger, Twilio Verify) porque Supabase no lo trae nativo.
 
-### Admin — falta migrar a queries DB cross-user
-- **AppointmentsSection y ReportsSection** — todavía leen del USER mock. Para producción necesitan agregaciones reales (`select count, sum, group by month`) sobre `pending_bookings` + appointments confirmados de todos los users.
+### Admin — siguientes mejoras
+- **Tabla `appointments` real** con status `confirmed` / `completed` / `cancelled`. Hoy las "citas" del admin son `pending_bookings` (lo que el customer guarda en su bolsa). Para reservas confirmadas con pago real, hace falta un nuevo concepto.
+- **Cancelar / mover cita desde admin** — agregar policies admin UPDATE/DELETE en `pending_bookings` y CTAs en AppointmentsSection.
+- **Export CSV** de la vista de reportes para contabilidad mensual.
 
 ### Calidad
 - **Tests** — Vitest + React Testing Library; helpers deterministas y CatalogProvider son buenos primeros candidatos. No hay ninguno todavía.
