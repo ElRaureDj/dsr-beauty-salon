@@ -6,6 +6,7 @@
 
 import { supabase } from './supabase';
 import type {
+  Address,
   Artisan,
   CategoryId,
   Combo,
@@ -393,6 +394,121 @@ export async function updateMyProfile(
     .maybeSingle();
   if (error) throw error;
   return data as DbProfile | null;
+}
+
+// ---------- Addresses (per-user) ----------
+
+interface DbAddress {
+  id: string;
+  user_id: string;
+  label: string;
+  recipient: string;
+  line1: string;
+  line2: string;
+  city: string;
+  region: string;
+  postal_code: string;
+  country: string;
+  phone: string;
+  is_default: boolean;
+}
+
+function mapAddress(row: DbAddress): Address {
+  return {
+    id: row.id,
+    label: row.label,
+    recipient: row.recipient,
+    line1: row.line1,
+    line2: row.line2,
+    city: row.city,
+    region: row.region,
+    postalCode: row.postal_code,
+    country: row.country,
+    phone: row.phone,
+    isDefault: row.is_default,
+  };
+}
+
+const ADDRESS_COLS =
+  'id, user_id, label, recipient, line1, line2, city, region, postal_code, country, phone, is_default';
+
+export async function fetchMyAddresses(): Promise<Address[]> {
+  const { data, error } = await supabase
+    .from('addresses')
+    .select(ADDRESS_COLS)
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as DbAddress[]).map(mapAddress);
+}
+
+export type AddressInput = Omit<Address, 'id' | 'isDefault'> & {
+  isDefault?: boolean;
+};
+
+function toDbAddress(input: AddressInput): Omit<DbAddress, 'id' | 'user_id'> {
+  return {
+    label: input.label,
+    recipient: input.recipient,
+    line1: input.line1,
+    line2: input.line2,
+    city: input.city,
+    region: input.region,
+    postal_code: input.postalCode,
+    country: input.country,
+    phone: input.phone,
+    is_default: input.isDefault ?? false,
+  };
+}
+
+export async function createAddress(
+  userId: string,
+  input: AddressInput,
+): Promise<Address> {
+  // Si esta es default, primero limpiar el default anterior (parcial unique
+  // index en la DB nos rechazaría dos rows con is_default = true).
+  if (input.isDefault) {
+    await supabase
+      .from('addresses')
+      .update({ is_default: false })
+      .eq('user_id', userId)
+      .eq('is_default', true);
+  }
+  const { data, error } = await supabase
+    .from('addresses')
+    .insert({ ...toDbAddress(input), user_id: userId })
+    .select(ADDRESS_COLS)
+    .single();
+  if (error) throw error;
+  return mapAddress(data as DbAddress);
+}
+
+export async function updateAddress(
+  userId: string,
+  id: string,
+  input: AddressInput,
+): Promise<Address> {
+  if (input.isDefault) {
+    await supabase
+      .from('addresses')
+      .update({ is_default: false })
+      .eq('user_id', userId)
+      .eq('is_default', true)
+      .neq('id', id);
+  }
+  const { data, error } = await supabase
+    .from('addresses')
+    .update(toDbAddress(input))
+    .eq('id', id)
+    .select(ADDRESS_COLS)
+    .single();
+  if (error) throw error;
+  return mapAddress(data as DbAddress);
+}
+
+export async function deleteAddress(id: string): Promise<void> {
+  const { error } = await supabase.from('addresses').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ---------- Service Variants ----------

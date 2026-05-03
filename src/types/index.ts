@@ -270,6 +270,21 @@ export interface Combo {
   popular?: boolean;
 }
 
+// Direcciones de envío por user (boutique).
+export interface Address {
+  id: string;
+  label: string;
+  recipient: string;
+  line1: string;
+  line2: string;
+  city: string;
+  region: string;
+  postalCode: string;
+  country: string;
+  phone: string;
+  isDefault: boolean;
+}
+
 // Routing
 export type RouteName =
   | 'onboarding'
@@ -291,7 +306,9 @@ export type RouteName =
   | 'gift-cards'
   | 'gift-buy'
   | 'gift-mine'
-  | 'appointment';
+  | 'appointment'
+  | 'personal-info'
+  | 'addresses';
 
 export type TabId = 'home' | 'services' | 'book' | 'rewards' | 'shop';
 

@@ -30,6 +30,8 @@ import { GiftCards } from './screens/GiftCards';
 import { GiftBuy } from './screens/GiftBuy';
 import { GiftMine } from './screens/GiftMine';
 import { AppointmentDetail } from './screens/AppointmentDetail';
+import { PersonalInfo } from './screens/PersonalInfo';
+import { Addresses } from './screens/Addresses';
 
 // Routes that should hide the bottom tab bar
 const HIDE_TAB_ROUTES: ReadonlyArray<string> = [
@@ -46,6 +48,8 @@ const HIDE_TAB_ROUTES: ReadonlyArray<string> = [
   'gift-mine',
   'profile',
   'appointment',
+  'personal-info',
+  'addresses',
 ];
 
 // Pantallas donde no tiene sentido el chrome top (avatar/cart):
@@ -115,6 +119,10 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
       return <GiftMine />;
     case 'appointment':
       return <AppointmentDetail id={params.id ?? ''} />;
+    case 'personal-info':
+      return <PersonalInfo />;
+    case 'addresses':
+      return <Addresses />;
     default:
       // unreachable but keeps the compiler happy
       go('home');

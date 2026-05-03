@@ -49,10 +49,28 @@ export function Profile() {
   };
 
   const themeLabel = T.name === 'noir' ? 'Noir Couture' : 'Marbre Doré';
-  const settings: { es: string; en: string; onClick?: () => void }[] = [
-    { es: 'Información personal', en: 'Personal info' },
+  const settings: {
+    es: string;
+    en: string;
+    onClick?: () => void;
+    badge?: { es: string; en: string };
+  }[] = [
+    {
+      es: 'Información personal',
+      en: 'Personal info',
+      onClick: () => go('personal-info'),
+    },
+    {
+      es: 'Direcciones de envío',
+      en: 'Shipping addresses',
+      onClick: () => go('addresses'),
+    },
     { es: 'Favoritos', en: 'Favorites' },
-    { es: 'Métodos de pago', en: 'Payment methods' },
+    {
+      es: 'Métodos de pago',
+      en: 'Payment methods',
+      badge: { es: 'Próximamente', en: 'Coming soon' },
+    },
     { es: 'Notificaciones', en: 'Notifications' },
     {
       es: `Tema · ${themeLabel}`,
@@ -305,26 +323,48 @@ export function Profile() {
         <div style={{ marginTop: 32 }}>
           <Eyebrow>{lang === 'es' ? 'Preferencias' : 'Preferences'}</Eyebrow>
           <div style={{ marginTop: 14 }}>
-            {settings.map((it, i) => (
-              <div
-                key={i}
-                onClick={it.onClick}
-                className="dsr-press"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '16px 0',
-                  borderTop: i === 0 ? 'none' : `1px solid ${T.line}`,
-                  cursor: 'pointer',
-                }}
-              >
-                <Body style={{ fontSize: 14 }}>{lang === 'es' ? it.es : it.en}</Body>
-                <Ico size={12} color={T.textMuted}>
-                  {Icons.chev}
-                </Ico>
-              </div>
-            ))}
+            {settings.map((it, i) => {
+              const enabled = !!it.onClick;
+              return (
+                <div
+                  key={i}
+                  onClick={enabled ? it.onClick : undefined}
+                  className={enabled ? 'dsr-press' : undefined}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '16px 0',
+                    borderTop: i === 0 ? 'none' : `1px solid ${T.line}`,
+                    cursor: enabled ? 'pointer' : 'default',
+                    opacity: enabled ? 1 : 0.45,
+                  }}
+                >
+                  <Body style={{ fontSize: 14 }}>{lang === 'es' ? it.es : it.en}</Body>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {it.badge && (
+                      <Tiny
+                        style={{
+                          color: T.textMuted,
+                          letterSpacing: 1.2,
+                          fontSize: 9,
+                          padding: '3px 8px',
+                          background: T.surface,
+                          boxShadow: `inset 0 0 0 1px ${T.line}`,
+                        }}
+                      >
+                        {lang === 'es' ? it.badge.es : it.badge.en}
+                      </Tiny>
+                    )}
+                    {enabled && (
+                      <Ico size={12} color={T.textMuted}>
+                        {Icons.chev}
+                      </Ico>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
