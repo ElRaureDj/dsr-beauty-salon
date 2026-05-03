@@ -7,8 +7,8 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useI18n } from '../../i18n/LangProvider';
 import { useCart } from '../../cart/CartProvider';
 import { useRouter } from '../../router/Router';
-import { USER } from '../../data/user';
 import { useUser } from '../../data/UserProvider';
+import { useUserData } from '../../data/useUserData';
 import { Ico, Icons } from './Icon';
 import { Img } from './Layout';
 
@@ -27,6 +27,7 @@ export function TopChrome() {
   const cart = useCart();
   const { go } = useRouter();
   const { avatar } = useUser();
+  const user = useUserData();
   const [menuOpen, setMenuOpen] = useState(false);
   // Si la imagen del avatar falla (pollinations rate-limited, offline, etc.),
   // caemos a las iniciales en lugar de dejar el placeholder gris.
@@ -200,7 +201,7 @@ export function TopChrome() {
               onError={() => setAvatarFailed(true)}
             />
           ) : (
-            USER.name[0]
+            user.name[0]?.toUpperCase() ?? '·'
           )}
         </button>
       </div>
@@ -248,7 +249,7 @@ export function TopChrome() {
                 color: T.text,
               }}
             >
-              {USER.fullName}
+              {user.fullName}
             </div>
           </div>
           {items.map((it, i) => (

@@ -14,12 +14,9 @@ import {
   Tiny,
 } from '../components/atoms';
 import { GiftCardVisual } from '../components/GiftCardVisual';
-import {
-  GIFTCARD_AMOUNTS,
-  GIFTCARD_DESIGNS,
-} from '../data/giftcards';
-import { findGiftCardDesign } from '../data/helpers';
-import { USER } from '../data/user';
+import { GIFTCARD_AMOUNTS } from '../data/giftcards';
+import { useCatalog } from '../data/CatalogProvider';
+import { useUserData } from '../data/useUserData';
 import { useRouter } from '../router/Router';
 
 interface GiftBuyProps {
@@ -106,13 +103,15 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getGiftCardDesigns, getGiftCardDesign } = useCatalog();
+  const user = useUserData();
 
   const [step, setStep] = useState(0);
   const [designId, setDesignId] = useState(initial.design || 'noir');
   const [amount, setAmount] = useState(150);
   const [custom, setCustom] = useState('');
   const [recipient, setRecipient] = useState('');
-  const [from, setFrom] = useState(USER.fullName);
+  const [from, setFrom] = useState(user.fullName);
   const [message, setMessage] = useState(
     lang === 'es'
       ? 'Para que vivas un momento de la maison.'
@@ -123,7 +122,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
   const [contact, setContact] = useState('');
   const [done, setDone] = useState(false);
 
-  const design = findGiftCardDesign(designId);
+  const design = getGiftCardDesign(designId);
   if (!design) return null;
   const finalAmount = custom ? parseInt(custom, 10) || amount : amount;
 
@@ -215,7 +214,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
                   padding: '0 22px',
                 }}
               >
-                {GIFTCARD_DESIGNS.map((d) => (
+                {getGiftCardDesigns().map((d) => (
                   <button
                     key={d.id}
                     onClick={() => setDesignId(d.id)}

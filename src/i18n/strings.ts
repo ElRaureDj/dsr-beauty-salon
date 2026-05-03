@@ -200,6 +200,57 @@ export interface I18nStrings {
   adminGateInvalid: string;
   adminGateEnter: string;
   adminLock: string;
+  appointmentTitle: string;
+  appointmentReschedule: string;
+  appointmentCancel: string;
+  appointmentCancelled: string;
+  appointmentNotFound: string;
+  appointmentPastBadge: string;
+  appointmentBackHome: string;
+  authSendLink: string;
+  authSending: string;
+  authMagicLinkTitle: string;
+  authMagicLinkSub: string;
+  authResend: string;
+  authComingSoon: string;
+  personalInfoTitle: string;
+  personalInfoSub: string;
+  personalInfoFullNameLabel: string;
+  personalInfoDisplayNameLabel: string;
+  personalInfoEmailLabel: string;
+  personalInfoEmailHint: string;
+  personalInfoSave: string;
+  personalInfoSaving: string;
+  personalInfoSaved: string;
+  personalInfoLoginRequired: string;
+  personalInfoLoginCta: string;
+  addressesTitle: string;
+  addressesSub: string;
+  addressesEmpty: string;
+  addressesAdd: string;
+  addressesNew: string;
+  addressesEdit: string;
+  addressesDelete: string;
+  addressesDefault: string;
+  addressesSetDefault: string;
+  addressFormLabel: string;
+  addressFormLabelHint: string;
+  addressFormRecipient: string;
+  addressFormLine1: string;
+  addressFormLine2: string;
+  addressFormCity: string;
+  addressFormRegion: string;
+  addressFormPostalCode: string;
+  addressFormCountry: string;
+  addressFormPhone: string;
+  addressFormSave: string;
+  addressLabelHome: string;
+  addressLabelOffice: string;
+  addressLabelCustom: string;
+  addressFormCustomLabel: string;
+  addressFormState: string;
+  addressFormZip: string;
+  addressFormStatePlaceholder: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -403,6 +454,57 @@ export const I18N: Record<Lang, I18nStrings> = {
     adminGateInvalid: 'Código incorrecto',
     adminGateEnter: 'Entrar al panel',
     adminLock: 'Cerrar panel',
+    appointmentTitle: 'Tu cita',
+    appointmentReschedule: 'Reagendar',
+    appointmentCancel: 'Cancelar cita',
+    appointmentCancelled: 'Cita cancelada',
+    appointmentNotFound: 'Cita no encontrada',
+    appointmentPastBadge: 'Pasada',
+    appointmentBackHome: 'Volver al inicio',
+    authSendLink: 'Enviar enlace de acceso',
+    authSending: 'Enviando...',
+    authMagicLinkTitle: 'Te enviamos un enlace',
+    authMagicLinkSub: 'Revisa tu inbox en {email}. Toca el enlace para entrar.',
+    authResend: 'Enviar de nuevo',
+    authComingSoon: 'Próximamente',
+    personalInfoTitle: 'Información personal',
+    personalInfoSub: 'Edita tu nombre y cómo te llamamos en la maison.',
+    personalInfoFullNameLabel: 'Nombre completo',
+    personalInfoDisplayNameLabel: 'Cómo te llamamos',
+    personalInfoEmailLabel: 'Email',
+    personalInfoEmailHint: 'Es tu identificador de acceso. Para cambiarlo, contacta al salón.',
+    personalInfoSave: 'Guardar cambios',
+    personalInfoSaving: 'Guardando…',
+    personalInfoSaved: 'Cambios guardados',
+    personalInfoLoginRequired: 'Inicia sesión para editar tu perfil.',
+    personalInfoLoginCta: 'Iniciar sesión',
+    addressesTitle: 'Direcciones de envío',
+    addressesSub: 'Para envíos de productos de la boutique.',
+    addressesEmpty: 'Aún no tienes direcciones guardadas.',
+    addressesAdd: 'Agregar dirección',
+    addressesNew: 'Nueva dirección',
+    addressesEdit: 'Editar',
+    addressesDelete: 'Eliminar',
+    addressesDefault: 'Predeterminada',
+    addressesSetDefault: 'Marcar como predeterminada',
+    addressFormLabel: 'Etiqueta',
+    addressFormLabelHint: 'Casa, oficina, etc.',
+    addressFormRecipient: 'Destinatario',
+    addressFormLine1: 'Calle y número',
+    addressFormLine2: 'Piso, departamento (opcional)',
+    addressFormCity: 'Ciudad',
+    addressFormRegion: 'Provincia / Región',
+    addressFormPostalCode: 'Código postal',
+    addressFormCountry: 'País',
+    addressFormPhone: 'Teléfono',
+    addressFormSave: 'Guardar dirección',
+    addressLabelHome: 'Casa',
+    addressLabelOffice: 'Oficina',
+    addressLabelCustom: 'Personalizada',
+    addressFormCustomLabel: 'Etiqueta personalizada',
+    addressFormState: 'Estado',
+    addressFormZip: 'ZIP',
+    addressFormStatePlaceholder: 'Selecciona un estado',
   },
   en: {
     welcome: 'Welcome',
@@ -602,5 +704,56 @@ export const I18N: Record<Lang, I18nStrings> = {
     adminGateInvalid: 'Wrong code',
     adminGateEnter: 'Enter panel',
     adminLock: 'Lock panel',
+    appointmentTitle: 'Your appointment',
+    appointmentReschedule: 'Reschedule',
+    appointmentCancel: 'Cancel appointment',
+    appointmentCancelled: 'Appointment cancelled',
+    appointmentNotFound: 'Appointment not found',
+    appointmentPastBadge: 'Past',
+    appointmentBackHome: 'Back to home',
+    authSendLink: 'Send sign-in link',
+    authSending: 'Sending...',
+    authMagicLinkTitle: 'We sent you a link',
+    authMagicLinkSub: 'Check your inbox at {email}. Tap the link to sign in.',
+    authResend: 'Resend',
+    authComingSoon: 'Coming soon',
+    personalInfoTitle: 'Personal info',
+    personalInfoSub: 'Edit your name and how we address you at the maison.',
+    personalInfoFullNameLabel: 'Full name',
+    personalInfoDisplayNameLabel: 'How we call you',
+    personalInfoEmailLabel: 'Email',
+    personalInfoEmailHint: "It's your sign-in identifier. To change it, contact the salon.",
+    personalInfoSave: 'Save changes',
+    personalInfoSaving: 'Saving…',
+    personalInfoSaved: 'Changes saved',
+    personalInfoLoginRequired: 'Sign in to edit your profile.',
+    personalInfoLoginCta: 'Sign in',
+    addressesTitle: 'Shipping addresses',
+    addressesSub: 'For boutique product deliveries.',
+    addressesEmpty: 'No addresses saved yet.',
+    addressesAdd: 'Add address',
+    addressesNew: 'New address',
+    addressesEdit: 'Edit',
+    addressesDelete: 'Delete',
+    addressesDefault: 'Default',
+    addressesSetDefault: 'Set as default',
+    addressFormLabel: 'Label',
+    addressFormLabelHint: 'Home, office, etc.',
+    addressFormRecipient: 'Recipient',
+    addressFormLine1: 'Street and number',
+    addressFormLine2: 'Floor, apartment (optional)',
+    addressFormCity: 'City',
+    addressFormRegion: 'State / Region',
+    addressFormPostalCode: 'Postal code',
+    addressFormCountry: 'Country',
+    addressFormPhone: 'Phone',
+    addressFormSave: 'Save address',
+    addressLabelHome: 'Home',
+    addressLabelOffice: 'Office',
+    addressLabelCustom: 'Custom',
+    addressFormCustomLabel: 'Custom label',
+    addressFormState: 'State',
+    addressFormZip: 'ZIP',
+    addressFormStatePlaceholder: 'Select a state',
   },
 };

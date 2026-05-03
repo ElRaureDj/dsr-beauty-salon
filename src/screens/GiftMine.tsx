@@ -14,7 +14,7 @@ import {
 } from '../components/atoms';
 import { GiftCardVisual } from '../components/GiftCardVisual';
 import { USER_GIFTCARDS } from '../data/giftcards';
-import { findGiftCardDesign } from '../data/helpers';
+import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 import type { ReceivedGiftCard, SentGiftCard } from '../types';
 
@@ -24,6 +24,7 @@ export function GiftMine() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getGiftCardDesign } = useCatalog();
   const [tab, setTab] = useState<Tab>('received');
 
   const list: (ReceivedGiftCard | SentGiftCard)[] =
@@ -90,7 +91,7 @@ export function GiftMine() {
         {/* List */}
         <div style={{ marginTop: 26 }}>
           {list.map((gc) => {
-            const d = findGiftCardDesign(gc.design);
+            const d = getGiftCardDesign(gc.design);
             if (!d) return null;
             const isReceived = tab === 'received';
             const received = isReceived ? (gc as ReceivedGiftCard) : null;

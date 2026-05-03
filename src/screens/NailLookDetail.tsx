@@ -14,7 +14,6 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
-import { findNailLook } from '../data/helpers';
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
@@ -22,8 +21,8 @@ export function NailLookDetail({ id }: { id: string }) {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const { getArtisan, getService } = useCatalog();
-  const n = findNailLook(id);
+  const { getArtisan, getService, getNailLook } = useCatalog();
+  const n = getNailLook(id);
   if (!n) return null;
   const ar = getArtisan(n.artisan);
   const svc = getService(n.service);

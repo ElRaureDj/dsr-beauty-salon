@@ -14,7 +14,7 @@ import {
   Tiny,
 } from '../components/atoms';
 import { PERKS } from '../data/tiers';
-import { USER } from '../data/user';
+import { useUserData } from '../data/useUserData';
 import { nextTier, tierFor } from '../data/helpers';
 import { useRouter } from '../router/Router';
 
@@ -22,8 +22,9 @@ export function Rewards() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const tier = tierFor(USER.points);
-  const next = nextTier(USER.points);
+  const user = useUserData();
+  const tier = tierFor(user.points);
+  const next = nextTier(user.points);
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -150,7 +151,7 @@ export function Rewards() {
                 fontSize: 9,
               }}
             >
-              {tier.name[lang].toUpperCase()} · {USER.fullName.toUpperCase()}
+              {tier.name[lang].toUpperCase()} · {user.fullName.toUpperCase()}
             </Tiny>
             <div
               style={{
@@ -161,7 +162,7 @@ export function Rewards() {
                 letterSpacing: 2,
               }}
             >
-              5290 · 0294 · {USER.joined.split('-')[0]}
+              5290 · 0294 · {user.joined.split('-')[0]}
             </div>
           </div>
         </div>
@@ -190,9 +191,9 @@ export function Rewards() {
         }}
       >
         {[
-          { v: USER.points.toLocaleString(), l: t('points') },
-          { v: String(USER.visits), l: t('visits') },
-          { v: `€${USER.spent.toLocaleString()}`, l: t('spent') },
+          { v: user.points.toLocaleString(), l: t('points') },
+          { v: String(user.visits), l: t('visits') },
+          { v: `€${user.spent.toLocaleString()}`, l: t('spent') },
         ].map((s, i) => (
           <div
             key={i}
@@ -232,13 +233,13 @@ export function Rewards() {
               {lang === 'es' ? 'Camino a' : 'Path to'} {next.name[lang]}
             </Eyebrow>
             <Tiny style={{ color: T.gold, letterSpacing: 0.4, textTransform: 'none' }}>
-              {(next.min - USER.points).toLocaleString()} {t('points')}
+              {(next.min - user.points).toLocaleString()} {t('points')}
             </Tiny>
           </div>
           <div style={{ height: 4, background: T.surface, position: 'relative', overflow: 'hidden' }}>
             <div
               style={{
-                width: `${((USER.points - tier.min) / (next.min - tier.min)) * 100}%`,
+                width: `${((user.points - tier.min) / (next.min - tier.min)) * 100}%`,
                 height: '100%',
                 background: `linear-gradient(90deg, ${T.gold}, ${T.goldHi})`,
                 transition: 'width 1s',
@@ -421,7 +422,7 @@ export function Rewards() {
             { points: 3000, es: 'Facial Signature', en: 'Signature Facial' },
             { points: 5000, es: 'Ritual de Oro 24K', en: '24K Gold Ritual' },
           ].map((r, i) => {
-            const can = USER.points >= r.points;
+            const can = user.points >= r.points;
             return (
               <div
                 key={i}

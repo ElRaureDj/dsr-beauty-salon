@@ -16,21 +16,20 @@ import {
 } from '../components/atoms';
 import { useCatalog } from '../data/CatalogProvider';
 import { I } from '../data/images';
-import { NAIL_LOOKS } from '../data/nails';
 import { useRouter } from '../router/Router';
 
 export function NailAtelier() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const { getArtisan } = useCatalog();
+  const { getArtisan, getNailLooks } = useCatalog();
   const seasons =
     lang === 'es'
       ? ['Todas', 'Primavera', 'Verano', 'Otoño', 'Invierno']
       : ['All', 'Spring', 'Summer', 'Fall', 'Winter'];
   const [season, setSeason] = useState(0);
 
-  const visible = NAIL_LOOKS.filter((n) => {
+  const visible = getNailLooks().filter((n) => {
     if (season === 0) return true;
     return (lang === 'es' ? n.season_es : n.season_en) === seasons[season];
   });

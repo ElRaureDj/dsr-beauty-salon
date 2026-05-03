@@ -15,13 +15,15 @@ import {
   Tiny,
 } from '../components/atoms';
 import { GiftCardVisual } from '../components/GiftCardVisual';
-import { GIFTCARD_DESIGNS, USER_GIFTCARDS } from '../data/giftcards';
+import { USER_GIFTCARDS } from '../data/giftcards';
+import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
 export function GiftCards() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getGiftCardDesigns } = useCatalog();
   const totalReceived = USER_GIFTCARDS.received.reduce((a, g) => a + g.balance, 0);
 
   return (
@@ -153,7 +155,7 @@ export function GiftCards() {
             padding: '0 22px 4px',
           }}
         >
-          {GIFTCARD_DESIGNS.map((d) => (
+          {getGiftCardDesigns().map((d) => (
             <div
               key={d.id}
               onClick={() => go('gift-buy', { design: d.id })}
