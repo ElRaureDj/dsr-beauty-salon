@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<!--
+  DSR Maison de Beauté — Magic link / OTP email template (bilingüe).
+  Pegar el contenido en Supabase Dashboard → Authentication → Email Templates →
+  Magic Link → "Body (HTML)". Variables disponibles:
+    {{ .Token }}          código OTP de 6 dígitos
+    {{ .ConfirmationURL }} link directo de un solo click
+    {{ .Email }}          destinatario
+    {{ .SiteURL }}        URL base del sitio
+
+  Diseño: fondo oscuro DSR (Noir Couture) con acentos dorados, tipografía
+  serif italic en headings, monospace para el código. Inline styles para
+  máxima compatibilidad con clientes de email (Gmail, Outlook, Apple Mail).
+-->
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DSR · Tu código de acceso</title>
+  </head>
+  <body style="margin:0; padding:0; background:#0A0908; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; color:#EFEAE0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0A0908;">
+      <tr>
+        <td align="center" style="padding:48px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px; background:#13110F; box-shadow: inset 0 0 0 1px rgba(196,160,90,0.18);">
+
+            <!-- Brand mark -->
+            <tr>
+              <td align="center" style="padding:42px 32px 12px;">
+                <div style="font-family: Georgia,'Times New Roman',serif; font-style:italic; font-weight:300; font-size:32px; color:#C4A05A; letter-spacing:0.04em; line-height:1;">
+                  DSR
+                </div>
+                <div style="margin-top:8px; font-size:9px; letter-spacing:3px; color:#8B847A; text-transform:uppercase;">
+                  Maison de Beauté
+                </div>
+              </td>
+            </tr>
+
+            <!-- Gold rule -->
+            <tr>
+              <td align="center" style="padding:24px 32px 0;">
+                <div style="width:36px; height:1px; background:#C4A05A;"></div>
+              </td>
+            </tr>
+
+            <!-- ─────────── Español ─────────── -->
+            <tr>
+              <td style="padding:32px 40px 8px;">
+                <h1 style="margin:0 0 14px; font-family: Georgia,'Times New Roman',serif; font-style:italic; font-weight:300; font-size:28px; color:#EFEAE0; line-height:1.25;">
+                  Tu código de acceso
+                </h1>
+                <p style="margin:0; font-size:14px; line-height:1.6; color:#B5AEA1;">
+                  Ingresa este código en la app para iniciar sesión. Es válido por 60 minutos y solo se puede usar una vez.
+                </p>
+              </td>
+            </tr>
+
+            <!-- OTP code box -->
+            <tr>
+              <td align="center" style="padding:24px 40px 8px;">
+                <div style="display:inline-block; padding:18px 28px; background:#0A0908; box-shadow: inset 0 0 0 1px rgba(196,160,90,0.55); font-family: 'SF Mono','Menlo','Consolas',monospace; font-size:32px; letter-spacing:14px; color:#C4A05A; font-weight:500;">
+                  {{ .Token }}
+                </div>
+              </td>
+            </tr>
+
+            <!-- One-click link -->
+            <tr>
+              <td align="center" style="padding:18px 40px 8px;">
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block; padding:12px 22px; background:#C4A05A; color:#0A0908; text-decoration:none; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase;">
+                  O entra con un click
+                </a>
+              </td>
+            </tr>
+
+            <!-- Divider -->
+            <tr>
+              <td align="center" style="padding:36px 40px 0;">
+                <div style="width:100%; height:1px; background:rgba(196,160,90,0.18);"></div>
+              </td>
+            </tr>
+
+            <!-- ─────────── English ─────────── -->
+            <tr>
+              <td style="padding:32px 40px 8px;">
+                <h2 style="margin:0 0 14px; font-family: Georgia,'Times New Roman',serif; font-style:italic; font-weight:300; font-size:24px; color:#EFEAE0; line-height:1.25;">
+                  Your access code
+                </h2>
+                <p style="margin:0; font-size:14px; line-height:1.6; color:#B5AEA1;">
+                  Enter this code in the app to sign in. It's valid for 60 minutes and can only be used once.
+                </p>
+              </td>
+            </tr>
+
+            <!-- OTP code box (mirror) -->
+            <tr>
+              <td align="center" style="padding:24px 40px 8px;">
+                <div style="display:inline-block; padding:18px 28px; background:#0A0908; box-shadow: inset 0 0 0 1px rgba(196,160,90,0.55); font-family: 'SF Mono','Menlo','Consolas',monospace; font-size:32px; letter-spacing:14px; color:#C4A05A; font-weight:500;">
+                  {{ .Token }}
+                </div>
+              </td>
+            </tr>
+
+            <!-- One-click link (en) -->
+            <tr>
+              <td align="center" style="padding:18px 40px 8px;">
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block; padding:12px 22px; background:#C4A05A; color:#0A0908; text-decoration:none; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase;">
+                  Or sign in with one click
+                </a>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:44px 40px 36px;">
+                <div style="height:1px; background:rgba(196,160,90,0.12); margin-bottom:22px;"></div>
+                <p style="margin:0 0 8px; font-size:11px; line-height:1.6; color:#8B847A;">
+                  Si no solicitaste este código, ignora este email — nadie podrá acceder a tu cuenta sin él.
+                </p>
+                <p style="margin:0; font-size:11px; line-height:1.6; color:#8B847A;">
+                  If you didn't request this code, please ignore this email — no one can access your account without it.
+                </p>
+                <div style="margin-top:24px; font-family: Georgia,'Times New Roman',serif; font-style:italic; font-size:12px; color:#C4A05A; letter-spacing:0.02em;">
+                  Su belleza, nuestro arte.
+                </div>
+              </td>
+            </tr>
+
+          </table>
+
+          <!-- Outer footer -->
+          <p style="margin:28px 0 0; font-size:10px; letter-spacing:1.5px; color:#5C564E; text-transform:uppercase;">
+            DSR · Maison de Beauté · Madrid
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
