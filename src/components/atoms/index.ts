@@ -9,4 +9,5 @@ export * from './AvatarPicker';
 export * from './PromoInput';
 export * from './RateStars';
 export * from './Skeleton';
+export * from './SearchOverlay';
 export * from './Toast';

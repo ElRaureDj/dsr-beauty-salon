@@ -1,4 +1,5 @@
 // DSR — Home (hero · upcoming · AI pick · stories · look-of-month · artisans · member card)
+import { useState } from 'react';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import {
@@ -14,6 +15,7 @@ import {
   Img,
   Numeral,
   Screen,
+  SearchOverlay,
   Tiny,
 } from '../components/atoms';
 import { useCatalog } from '../data/CatalogProvider';
@@ -28,6 +30,7 @@ export function Home() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const [searchOpen, setSearchOpen] = useState(false);
   const { getArtisan, getService, getAllArtisans, getCombos, getAllServices, getTiers } =
     useCatalog();
   const { getUpcoming } = useAppointments();
@@ -77,6 +80,8 @@ export function Home() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
+            onClick={() => setSearchOpen(true)}
+            aria-label={lang === 'es' ? 'Buscar' : 'Search'}
             className="dsr-press"
             style={{
               width: 38,
@@ -765,6 +770,7 @@ export function Home() {
           )}
         </div>
       </div>
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </Screen>
   );
 }
