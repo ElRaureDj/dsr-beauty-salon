@@ -8,6 +8,7 @@ import { supabase } from './supabase';
 import type {
   Address,
   Artisan,
+  ArtisanSchedule,
   CartItem,
   CategoryId,
   Combo,
@@ -16,9 +17,14 @@ import type {
   PendingBooking,
   Perk,
   Product,
+  ProductStock,
   Promo,
+  Review,
+  SalonSettings,
   Service,
   Tier,
+  TierRule,
+  WeekDay,
 } from '../types';
 
 // ---------- Helpers ----------
@@ -690,6 +696,268 @@ export async function deletePromo(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// ---------- Product Stocks ----------
+
+interface DbProductStock {
+  product_id: string;
+  stock: number;
+  low_stock_at: number;
+}
+
+export async function fetchProductStocks(): Promise<Record<string, ProductStock>> {
+  const { data, error } = await supabase
+    .from('product_stocks')
+    .select('product_id, stock, low_stock_at');
+  if (error) throw error;
+  const out: Record<string, ProductStock> = {};
+  for (const row of data as DbProductStock[]) {
+    out[row.product_id] = {
+      productId: row.product_id,
+      stock: row.stock,
+      lowStockAt: row.low_stock_at,
+    };
+  }
+  return out;
+}
+
+export async function upsertProductStock(
+  productId: string,
+  fields: Partial<ProductStock>,
+): Promise<void> {
+  const { error } = await supabase.from('product_stocks').upsert(
+    {
+      product_id: productId,
+      stock: fields.stock ?? 0,
+      low_stock_at: fields.lowStockAt ?? 0,
+    },
+    { onConflict: 'product_id' },
+  );
+  if (error) throw error;
+}
+
+// ---------- Artisan Schedules ----------
+
+interface DbArtisanSchedule {
+  artisan_id: string;
+  working_days: Record<WeekDay, boolean>;
+  start_time: string;
+  end_time: string;
+}
+
+export async function fetchArtisanSchedules(): Promise<
+  Record<string, ArtisanSchedule>
+> {
+  const { data, error } = await supabase
+    .from('artisan_schedules')
+    .select('artisan_id, working_days, start_time, end_time');
+  if (error) throw error;
+  const out: Record<string, ArtisanSchedule> = {};
+  for (const row of data as DbArtisanSchedule[]) {
+    out[row.artisan_id] = {
+      artisanId: row.artisan_id,
+      workingDays: row.working_days,
+      // Postgres time -> 'HH:MM:SS'. Recortamos a 'HH:MM' para coincidir con TS.
+      startTime: row.start_time.slice(0, 5),
+      endTime: row.end_time.slice(0, 5),
+    };
+  }
+  return out;
+}
+
+export async function upsertArtisanSchedule(
+  artisanId: string,
+  fields: Partial<ArtisanSchedule>,
+): Promise<void> {
+  const update: Record<string, unknown> = { artisan_id: artisanId };
+  if (fields.workingDays !== undefined) update.working_days = fields.workingDays;
+  if (fields.startTime !== undefined) update.start_time = fields.startTime;
+  if (fields.endTime !== undefined) update.end_time = fields.endTime;
+  const { error } = await supabase
+    .from('artisan_schedules')
+    .upsert(update, { onConflict: 'artisan_id' });
+  if (error) throw error;
+}
+
+// ---------- Tier Rules ----------
+
+interface DbTierRule {
+  tier_id: 'pearl' | 'gold' | 'noir';
+  threshold_points: number;
+  multiplier_hair: number;
+  multiplier_nails: number;
+  multiplier_facial: number;
+}
+
+function mapTierRule(row: DbTierRule): TierRule {
+  return {
+    tierId: row.tier_id,
+    thresholdPoints: row.threshold_points,
+    multipliers: {
+      hair: Number(row.multiplier_hair),
+      nails: Number(row.multiplier_nails),
+      facial: Number(row.multiplier_facial),
+    },
+  };
+}
+
+export async function fetchTierRules(): Promise<TierRule[]> {
+  const { data, error } = await supabase
+    .from('tier_rules')
+    .select('tier_id, threshold_points, multiplier_hair, multiplier_nails, multiplier_facial')
+    .order('threshold_points', { ascending: true });
+  if (error) throw error;
+  return (data as DbTierRule[]).map(mapTierRule);
+}
+
+export async function updateTierRule(
+  tierId: TierRule['tierId'],
+  fields: Partial<Omit<TierRule, 'tierId'>>,
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if (fields.thresholdPoints !== undefined)
+    update.threshold_points = fields.thresholdPoints;
+  if (fields.multipliers !== undefined) {
+    update.multiplier_hair = fields.multipliers.hair;
+    update.multiplier_nails = fields.multipliers.nails;
+    update.multiplier_facial = fields.multipliers.facial;
+  }
+  const { error } = await supabase
+    .from('tier_rules')
+    .update(update)
+    .eq('tier_id', tierId);
+  if (error) throw error;
+}
+
+// ---------- Salon Settings (single row) ----------
+
+interface DbSalonSettings {
+  id: number;
+  name: string;
+  tagline_es: string;
+  tagline_en: string;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+  instagram: string | null;
+  whatsapp: string | null;
+  hours_open: string;
+  hours_close: string;
+  currency: SalonSettings['currency'];
+  timezone: string;
+}
+
+const SALON_COLS =
+  'id, name, tagline_es, tagline_en, address, city, phone, email, instagram, whatsapp, hours_open, hours_close, currency, timezone';
+
+function mapSalonSettings(row: DbSalonSettings): SalonSettings {
+  return {
+    name: row.name,
+    tagline_es: row.tagline_es,
+    tagline_en: row.tagline_en,
+    address: row.address,
+    city: row.city,
+    phone: row.phone,
+    email: row.email,
+    instagram: row.instagram ?? undefined,
+    whatsapp: row.whatsapp ?? undefined,
+    hoursOpen: row.hours_open.slice(0, 5),
+    hoursClose: row.hours_close.slice(0, 5),
+    currency: row.currency,
+    timezone: row.timezone,
+  };
+}
+
+export async function fetchSalonSettings(): Promise<SalonSettings | null> {
+  const { data, error } = await supabase
+    .from('salon_settings')
+    .select(SALON_COLS)
+    .eq('id', 1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return mapSalonSettings(data as DbSalonSettings);
+}
+
+export async function updateSalonSettings(
+  fields: Partial<SalonSettings>,
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if (fields.name !== undefined) update.name = fields.name;
+  if (fields.tagline_es !== undefined) update.tagline_es = fields.tagline_es;
+  if (fields.tagline_en !== undefined) update.tagline_en = fields.tagline_en;
+  if (fields.address !== undefined) update.address = fields.address;
+  if (fields.city !== undefined) update.city = fields.city;
+  if (fields.phone !== undefined) update.phone = fields.phone;
+  if (fields.email !== undefined) update.email = fields.email;
+  if (fields.instagram !== undefined)
+    update.instagram = fields.instagram ?? null;
+  if (fields.whatsapp !== undefined) update.whatsapp = fields.whatsapp ?? null;
+  if (fields.hoursOpen !== undefined) update.hours_open = fields.hoursOpen;
+  if (fields.hoursClose !== undefined) update.hours_close = fields.hoursClose;
+  if (fields.currency !== undefined) update.currency = fields.currency;
+  if (fields.timezone !== undefined) update.timezone = fields.timezone;
+  const { error } = await supabase
+    .from('salon_settings')
+    .update(update)
+    .eq('id', 1);
+  if (error) throw error;
+}
+
+// ---------- Reviews ----------
+
+interface DbReview {
+  id: string;
+  customer_name: string;
+  artisan_id: string | null;
+  service_id: string | null;
+  rating: number;
+  comment: string;
+  date: string;
+  response: string | null;
+  response_date: string | null;
+}
+
+const REVIEW_COLS =
+  'id, customer_name, artisan_id, service_id, rating, comment, date, response, response_date';
+
+function mapReview(row: DbReview): Review {
+  return {
+    id: row.id,
+    customerName: row.customer_name,
+    artisanId: row.artisan_id ?? '',
+    serviceId: row.service_id ?? '',
+    rating: row.rating,
+    comment: row.comment,
+    date: row.date,
+    response: row.response ?? undefined,
+    responseDate: row.response_date ?? undefined,
+  };
+}
+
+export async function fetchReviews(): Promise<Review[]> {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select(REVIEW_COLS)
+    .order('date', { ascending: false });
+  if (error) throw error;
+  return (data as DbReview[]).map(mapReview);
+}
+
+export async function respondToReview(
+  id: string,
+  response: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('reviews')
+    .update({
+      response,
+      response_date: new Date().toISOString().slice(0, 10),
+    })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ---------- Cart Items (per-user) ----------
 
 interface DbCartItem {
@@ -910,25 +1178,19 @@ interface DbServiceVariant {
   custom_compatible_product_ids: string[];
 }
 
-export interface VariantsRow {
-  serviceId: string;
-  premium?: {
-    label_es: string;
-    label_en: string;
-    addonProductIds: string[];
-  };
+export interface VariantPremiumLite {
+  addonProductIds: string[];
+  label_es: string;
+  label_en: string;
+}
+
+export interface VariantConfigLite {
+  premium?: VariantPremiumLite;
   customCompatibleProductIds?: string[];
 }
 
-export async function fetchServiceVariants(): Promise<VariantsRow[]> {
-  const { data, error } = await supabase
-    .from('service_variants')
-    .select(
-      'service_id, premium_label_es, premium_label_en, premium_addon_product_ids, custom_compatible_product_ids',
-    );
-  if (error) throw error;
-  return (data as DbServiceVariant[]).map((row) => ({
-    serviceId: row.service_id,
+function mapVariantRow(row: DbServiceVariant): VariantConfigLite {
+  return {
     premium:
       row.premium_label_es && row.premium_label_en
         ? {
@@ -941,5 +1203,56 @@ export async function fetchServiceVariants(): Promise<VariantsRow[]> {
       row.custom_compatible_product_ids.length > 0
         ? row.custom_compatible_product_ids
         : undefined,
-  }));
+  };
+}
+
+/** Devuelve un Record indexado por service_id — formato que usa CatalogProvider. */
+export async function fetchServiceVariantsRecord(): Promise<
+  Record<string, VariantConfigLite>
+> {
+  const { data, error } = await supabase
+    .from('service_variants')
+    .select(
+      'service_id, premium_label_es, premium_label_en, premium_addon_product_ids, custom_compatible_product_ids',
+    );
+  if (error) throw error;
+  const out: Record<string, VariantConfigLite> = {};
+  for (const row of data as DbServiceVariant[]) {
+    out[row.service_id] = mapVariantRow(row);
+  }
+  return out;
+}
+
+export async function upsertServiceVariant(
+  serviceId: string,
+  config: VariantConfigLite,
+): Promise<void> {
+  const { error } = await supabase.from('service_variants').upsert(
+    {
+      service_id: serviceId,
+      premium_label_es: config.premium?.label_es ?? null,
+      premium_label_en: config.premium?.label_en ?? null,
+      premium_addon_product_ids: config.premium?.addonProductIds ?? [],
+      custom_compatible_product_ids: config.customCompatibleProductIds ?? [],
+    },
+    { onConflict: 'service_id' },
+  );
+  if (error) throw error;
+}
+
+export async function deleteServiceVariant(serviceId: string): Promise<void> {
+  const { error } = await supabase
+    .from('service_variants')
+    .delete()
+    .eq('service_id', serviceId);
+  if (error) throw error;
+}
+
+export async function clearAllServiceVariants(): Promise<void> {
+  // Wildcard delete protegido: eq fingiendo neq de algo imposible.
+  const { error } = await supabase
+    .from('service_variants')
+    .delete()
+    .neq('service_id', '__never_matches__');
+  if (error) throw error;
 }

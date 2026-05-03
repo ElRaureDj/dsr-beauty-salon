@@ -18,20 +18,35 @@ import { ARTISANS, PRODUCTS, SERVICES } from './catalog';
 import { GIFTCARD_DESIGNS } from './giftcards';
 import { NAIL_LOOKS } from './nails';
 import {
+  clearAllServiceVariants,
   createCombo as dbCreateCombo,
   createPromo as dbCreatePromo,
   deleteCombo as dbDeleteCombo,
   deletePromo as dbDeletePromo,
+  deleteServiceVariant,
+  fetchArtisanSchedules,
   fetchArtisans,
   fetchCombos,
   fetchGiftCardDesigns,
   fetchNailLooks,
   fetchProducts,
+  fetchProductStocks,
   fetchPromos,
+  fetchReviews,
+  fetchSalonSettings,
   fetchServices,
+  fetchServiceVariantsRecord,
+  fetchTierRules,
   resetCombosToSeed,
+  respondToReview as dbRespondToReview,
   updateCombo as dbUpdateCombo,
   updatePromo as dbUpdatePromo,
+  updateSalonSettings,
+  updateTierRule as dbUpdateTierRule,
+  upsertArtisanSchedule,
+  upsertProductStock,
+  upsertServiceVariant,
+  type VariantConfigLite,
 } from '../lib/db';
 import {
   SERVICE_VARIANTS,
@@ -61,7 +76,6 @@ import type {
   TierRule,
 } from '../types';
 
-const VARIANTS_KEY = 'dsr-admin-variants-v1';
 const PRODUCTS_KEY = 'dsr-admin-products-v1';
 const SERVICES_KEY = 'dsr-admin-services-v1';
 const ARTISANS_KEY = 'dsr-admin-artisans-v1';
@@ -73,11 +87,6 @@ const CREATED_ARTISANS_KEY = 'dsr-admin-created-artisans-v1';
 const DELETED_PRODUCTS_KEY = 'dsr-admin-deleted-products-v1';
 const DELETED_SERVICES_KEY = 'dsr-admin-deleted-services-v1';
 const DELETED_ARTISANS_KEY = 'dsr-admin-deleted-artisans-v1';
-const STOCKS_KEY = 'dsr-admin-stocks-v1';
-const SCHEDULES_KEY = 'dsr-admin-schedules-v1';
-const TIER_RULES_KEY = 'dsr-admin-tier-rules-v1';
-const REVIEWS_KEY = 'dsr-admin-reviews-v1';
-const SETTINGS_KEY = 'dsr-admin-settings-v1';
 
 interface VariantPremiumConfig {
   addonProductIds: string[];
@@ -90,7 +99,6 @@ export interface MergedVariantConfig {
   customCompatibleProductIds?: string[];
 }
 
-type VariantsOverride = Record<string, MergedVariantConfig | null>;
 type ProductOverrides = Record<string, Partial<Product>>;
 type ServiceOverrides = Record<string, Partial<Service>>;
 type ArtisanOverrides = Record<string, Partial<Artisan>>;
@@ -248,9 +256,6 @@ function generateId(prefix: string): string {
 }
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
-  const [variants, setVariants] = useState<VariantsOverride>(() =>
-    loadJSON(VARIANTS_KEY, {}),
-  );
   const [productOverrides, setProductOverrides] = useState<ProductOverrides>(() =>
     loadJSON(PRODUCTS_KEY, {}),
   );
@@ -280,22 +285,6 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [deletedArtisanIds, setDeletedArtisanIds] = useState<string[]>(() =>
     loadJSON<string[]>(DELETED_ARTISANS_KEY, []),
   );
-  const [stocks, setStocks] = useState<Record<string, ProductStock>>(() =>
-    loadJSON(STOCKS_KEY, SEED_PRODUCT_STOCKS),
-  );
-  const [schedules, setSchedules] = useState<Record<string, ArtisanSchedule>>(() =>
-    loadJSON(SCHEDULES_KEY, SEED_SCHEDULES),
-  );
-  const [tierRules, setTierRules] = useState<TierRule[]>(() =>
-    loadJSON<TierRule[]>(TIER_RULES_KEY, SEED_TIER_RULES),
-  );
-  const [reviews, setReviews] = useState<Review[]>(() =>
-    loadJSON<Review[]>(REVIEWS_KEY, SEED_REVIEWS),
-  );
-  const [settings, setSettings] = useState<SalonSettings>(() =>
-    loadJSON<SalonSettings>(SETTINGS_KEY, DEFAULT_SETTINGS),
-  );
-
   // ---------- Catálogo desde Supabase ----------
   // initialData = seed estático para tener UI inmediata sin flash de carga.
   // initialDataUpdatedAt: 0 marca el seed como "muy viejo" para que la query
@@ -357,11 +346,75 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(VARIANTS_KEY, JSON.stringify(variants));
-    } catch { /* ignore */ }
-  }, [variants]);
+  // Stocks, schedules, tier rules, reviews, settings y service variants:
+  // hidratados desde DB, mutations admin protegidas por RLS (is_admin).
+  const { data: dbStocks = SEED_PRODUCT_STOCKS } = useQuery({
+    queryKey: ['product_stocks'],
+    queryFn: fetchProductStocks,
+    initialData: SEED_PRODUCT_STOCKS,
+    initialDataUpdatedAt: 0,
+  });
+  const { data: dbSchedules = SEED_SCHEDULES } = useQuery({
+    queryKey: ['artisan_schedules'],
+    queryFn: fetchArtisanSchedules,
+    initialData: SEED_SCHEDULES,
+    initialDataUpdatedAt: 0,
+  });
+  const { data: dbTierRules = SEED_TIER_RULES } = useQuery({
+    queryKey: ['tier_rules'],
+    queryFn: fetchTierRules,
+    initialData: SEED_TIER_RULES,
+    initialDataUpdatedAt: 0,
+  });
+  const { data: dbReviews = SEED_REVIEWS } = useQuery({
+    queryKey: ['reviews'],
+    queryFn: fetchReviews,
+    initialData: SEED_REVIEWS,
+    initialDataUpdatedAt: 0,
+  });
+  const { data: dbSettings = DEFAULT_SETTINGS } = useQuery({
+    queryKey: ['salon_settings'],
+    queryFn: async () => (await fetchSalonSettings()) ?? DEFAULT_SETTINGS,
+    initialData: DEFAULT_SETTINGS,
+    initialDataUpdatedAt: 0,
+  });
+  // Variants overlay desde DB. Si una row existe → ese es el override
+  // (puede tener premium y/o customCompatible). Si no existe → SERVICE_VARIANTS
+  // estático actúa como fallback.
+  const { data: dbVariantOverrides = {} } = useQuery({
+    queryKey: ['service_variants'],
+    queryFn: fetchServiceVariantsRecord,
+    initialData: {} as Record<string, VariantConfigLite>,
+    initialDataUpdatedAt: 0,
+  });
+  const invalidateStocks = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['product_stocks'] }),
+    [queryClient],
+  );
+  const invalidateSchedules = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['artisan_schedules'] }),
+    [queryClient],
+  );
+  const invalidateTierRules = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['tier_rules'] }),
+    [queryClient],
+  );
+  const invalidateReviews = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['reviews'] }),
+    [queryClient],
+  );
+  const invalidateSettings = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['salon_settings'] }),
+    [queryClient],
+  );
+  const invalidateVariants = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['service_variants'] }),
+    [queryClient],
+  );
+
+  // Persistencia local de overrides (products/services/artisans) y de
+  // soft-deletes — esos siguen en localStorage hasta que la fase 7c
+  // (writes admin de products/services/artisans) los mueva a DB.
   useEffect(() => {
     try {
       window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(productOverrides));
@@ -395,40 +448,60 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try { window.localStorage.setItem(DELETED_ARTISANS_KEY, JSON.stringify(deletedArtisanIds)); } catch { /* ignore */ }
   }, [deletedArtisanIds]);
-  useEffect(() => {
-    try { window.localStorage.setItem(STOCKS_KEY, JSON.stringify(stocks)); } catch { /* ignore */ }
-  }, [stocks]);
-  useEffect(() => {
-    try { window.localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules)); } catch { /* ignore */ }
-  }, [schedules]);
-  useEffect(() => {
-    try { window.localStorage.setItem(TIER_RULES_KEY, JSON.stringify(tierRules)); } catch { /* ignore */ }
-  }, [tierRules]);
-  useEffect(() => {
-    try { window.localStorage.setItem(REVIEWS_KEY, JSON.stringify(reviews)); } catch { /* ignore */ }
-  }, [reviews]);
-  useEffect(() => {
-    try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
-  }, [settings]);
 
-  // Variants
+  // Variants — overlay desde DB. Si el service_id está en dbVariantOverrides
+  // ese gana. Si no, fallback a SERVICE_VARIANTS estático del repo.
   const getServiceVariants = useCallback(
     (serviceId: string): MergedVariantConfig | null => {
-      const base = SERVICE_VARIANTS[serviceId] ?? null;
-      const override = variants[serviceId];
-      if (override === null) return null;
-      if (override === undefined) return base;
-      return override;
+      const override = dbVariantOverrides[serviceId];
+      if (override) return override as MergedVariantConfig;
+      return SERVICE_VARIANTS[serviceId] ?? null;
     },
-    [variants],
+    [dbVariantOverrides],
   );
   const setServiceVariants = useCallback(
-    (serviceId: string, config: MergedVariantConfig | null) =>
-      setVariants((prev) => ({ ...prev, [serviceId]: config })),
-    [],
+    (serviceId: string, config: MergedVariantConfig | null) => {
+      // Optimistic local + dispatch DB.
+      queryClient.setQueryData<Record<string, VariantConfigLite>>(
+        ['service_variants'],
+        (prev) => {
+          const next = { ...(prev ?? {}) };
+          if (config === null) delete next[serviceId];
+          else next[serviceId] = config;
+          return next;
+        },
+      );
+      const promise =
+        config === null
+          ? deleteServiceVariant(serviceId)
+          : upsertServiceVariant(serviceId, config);
+      void promise
+        .then(() => invalidateVariants())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] setServiceVariants failed:', err);
+          void invalidateVariants();
+        });
+    },
+    [queryClient, invalidateVariants],
   );
-  const resetVariants = useCallback(() => setVariants({}), []);
-  const overriddenServiceIds = useMemo(() => Object.keys(variants), [variants]);
+  const resetVariants = useCallback(() => {
+    queryClient.setQueryData<Record<string, VariantConfigLite>>(
+      ['service_variants'],
+      {},
+    );
+    void clearAllServiceVariants()
+      .then(() => invalidateVariants())
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[catalog] resetVariants failed:', err);
+        void invalidateVariants();
+      });
+  }, [queryClient, invalidateVariants]);
+  const overriddenServiceIds = useMemo(
+    () => Object.keys(dbVariantOverrides),
+    [dbVariantOverrides],
+  );
 
   // Products — merged (base de DB + creados localmente) - eliminados,
   // con override por id. La base ahora viene de Supabase via useQuery.
@@ -719,19 +792,33 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       });
   }, [queryClient, invalidateCombos]);
 
-  // Inventario
+  // Inventario — leído desde DB.
   const getStock = useCallback(
     (productId: string): ProductStock =>
-      stocks[productId] ?? { productId, stock: 0, lowStockAt: 0 },
-    [stocks],
+      dbStocks[productId] ?? { productId, stock: 0, lowStockAt: 0 },
+    [dbStocks],
   );
   const updateStock = useCallback(
-    (productId: string, fields: Partial<ProductStock>) =>
-      setStocks((prev) => ({
-        ...prev,
-        [productId]: { ...(prev[productId] ?? { productId, stock: 0, lowStockAt: 0 }), ...fields },
-      })),
-    [],
+    (productId: string, fields: Partial<ProductStock>) => {
+      const current = dbStocks[productId] ?? {
+        productId,
+        stock: 0,
+        lowStockAt: 0,
+      };
+      const next = { ...current, ...fields };
+      queryClient.setQueryData<Record<string, ProductStock>>(
+        ['product_stocks'],
+        (prev) => ({ ...(prev ?? {}), [productId]: next }),
+      );
+      void upsertProductStock(productId, next)
+        .then(() => invalidateStocks())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateStock failed:', err);
+          void invalidateStocks();
+        });
+    },
+    [queryClient, invalidateStocks, dbStocks],
   );
 
   // Promociones: mismo patrón que combos. SELECT abierto (RLS) + writes
@@ -786,61 +873,109 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [queryClient, invalidatePromos],
   );
 
-  // Horarios
+  // Horarios — leídos desde DB.
+  const DEFAULT_WORKING_DAYS = useMemo(
+    () => ({
+      mon: true, tue: true, wed: true, thu: true,
+      fri: true, sat: true, sun: false,
+    }),
+    [],
+  );
   const getSchedule = useCallback(
     (artisanId: string): ArtisanSchedule =>
-      schedules[artisanId] ?? {
+      dbSchedules[artisanId] ?? {
         artisanId,
-        workingDays: { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: false },
+        workingDays: DEFAULT_WORKING_DAYS,
         startTime: '10:00',
         endTime: '20:00',
       },
-    [schedules],
+    [dbSchedules, DEFAULT_WORKING_DAYS],
   );
   const updateSchedule = useCallback(
-    (artisanId: string, fields: Partial<ArtisanSchedule>) =>
-      setSchedules((prev) => ({
-        ...prev,
-        [artisanId]: { ...(prev[artisanId] ?? { artisanId, workingDays: { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: false }, startTime: '10:00', endTime: '20:00' }), ...fields },
-      })),
-    [],
+    (artisanId: string, fields: Partial<ArtisanSchedule>) => {
+      const current = dbSchedules[artisanId] ?? {
+        artisanId,
+        workingDays: DEFAULT_WORKING_DAYS,
+        startTime: '10:00',
+        endTime: '20:00',
+      };
+      const next = { ...current, ...fields };
+      queryClient.setQueryData<Record<string, ArtisanSchedule>>(
+        ['artisan_schedules'],
+        (prev) => ({ ...(prev ?? {}), [artisanId]: next }),
+      );
+      void upsertArtisanSchedule(artisanId, next)
+        .then(() => invalidateSchedules())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateSchedule failed:', err);
+          void invalidateSchedules();
+        });
+    },
+    [queryClient, invalidateSchedules, dbSchedules, DEFAULT_WORKING_DAYS],
   );
 
-  // Tier rules
-  const getTierRules = useCallback(() => tierRules, [tierRules]);
+  // Tier rules — leídos desde DB.
+  const getTierRules = useCallback(() => dbTierRules, [dbTierRules]);
   const updateTierRule = useCallback(
     (
       tierId: 'pearl' | 'gold' | 'noir',
       fields: Partial<Omit<TierRule, 'tierId'>>,
-    ) =>
-      setTierRules((prev) =>
-        prev.map((r) => (r.tierId === tierId ? { ...r, ...fields } : r)),
-      ),
-    [],
+    ) => {
+      queryClient.setQueryData<TierRule[]>(['tier_rules'], (prev) =>
+        prev ? prev.map((r) => (r.tierId === tierId ? { ...r, ...fields } : r)) : prev,
+      );
+      void dbUpdateTierRule(tierId, fields)
+        .then(() => invalidateTierRules())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateTierRule failed:', err);
+          void invalidateTierRules();
+        });
+    },
+    [queryClient, invalidateTierRules],
   );
 
-  // Reviews
-  const getReviews = useCallback(() => reviews, [reviews]);
-  const respondToReview = useCallback((id: string, response: string) => {
-    setReviews((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              response,
-              responseDate: new Date().toISOString().slice(0, 10),
-            }
-          : r,
-      ),
-    );
-  }, []);
+  // Reviews — leídos desde DB. respondToReview es la única mutation
+  // (admin contesta una reseña).
+  const getReviews = useCallback(() => dbReviews, [dbReviews]);
+  const respondToReview = useCallback(
+    (id: string, response: string) => {
+      const responseDate = new Date().toISOString().slice(0, 10);
+      queryClient.setQueryData<Review[]>(['reviews'], (prev) =>
+        prev
+          ? prev.map((r) =>
+              r.id === id ? { ...r, response, responseDate } : r,
+            )
+          : prev,
+      );
+      void dbRespondToReview(id, response)
+        .then(() => invalidateReviews())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] respondToReview failed:', err);
+          void invalidateReviews();
+        });
+    },
+    [queryClient, invalidateReviews],
+  );
 
-  // Settings
-  const getSettings = useCallback(() => settings, [settings]);
+  // Settings (single row).
+  const getSettings = useCallback(() => dbSettings, [dbSettings]);
   const updateSettings = useCallback(
-    (fields: Partial<SalonSettings>) =>
-      setSettings((prev) => ({ ...prev, ...fields })),
-    [],
+    (fields: Partial<SalonSettings>) => {
+      queryClient.setQueryData<SalonSettings>(['salon_settings'], (prev) =>
+        prev ? { ...prev, ...fields } : prev,
+      );
+      void updateSalonSettings(fields)
+        .then(() => invalidateSettings())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateSettings failed:', err);
+          void invalidateSettings();
+        });
+    },
+    [queryClient, invalidateSettings],
   );
 
   const value = useMemo<CatalogValue>(
