@@ -1679,6 +1679,36 @@ export async function fetchAllAppointmentsForAdmin(): Promise<
   });
 }
 
+// ---------- Edge Functions: send-appointment-email ----------
+// Invoca la Edge Function que envía el email "cita confirmada" via Resend.
+// Si la function no está deployed o RESEND_API_KEY no está set, falla
+// silencio — el cliente loguea pero no rompe la UX del checkout.
+
+export interface SendAppointmentEmailInput {
+  to: string;
+  recipientName: string;
+  artisanName: string;
+  serviceNames: string[];
+  date: string;
+  time: string;
+  total: number;
+  currency: string;
+  lang: 'es' | 'en';
+  salonName: string;
+  salonAddress: string;
+  salonCity: string;
+  policyUrl?: string;
+}
+
+export async function sendAppointmentEmail(
+  input: SendAppointmentEmailInput,
+): Promise<void> {
+  const { error } = await supabase.functions.invoke('send-appointment-email', {
+    body: input,
+  });
+  if (error) throw error;
+}
+
 // ---------- Audit Log (admin) ----------
 // Tabla en migration 0019. Triggers automáticos en salon_settings y
 // tier_rules. RLS admin-only para SELECT.

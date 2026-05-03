@@ -282,6 +282,28 @@ Bundles que estoy ejecutando consecutivamente sin esperar entre commits:
 ### Conocidos a refactorear en otra pasada
 - **Currency display** — 48 sitios (`€{x}`) hardcoded en `src/screens/*` y `src/admin/sections/*`. La sede cambió a Miami con `currency = 'USD'`, pero solo `ReportsSection` lee `settings.currency` para el símbolo. Sitios customer (Bag, CartDrawer, ProductDetail, ServiceDetail, Booking, AppointmentDetail, NailLookDetail, Home, Profile) y los admin (CatalogList, CombosSection, VariantsSection, etc) muestran "€". Plan: helper `formatCurrency(n, settings.currency)` o hook `useCurrencySymbol()` + reemplazo en sitios customer-facing primero.
 
+### Activar Edge Function de email (Bundle P)
+
+`CheckoutSuccess` ya invoca `supabase.functions.invoke('send-appointment-email', ...)` tras un checkout autenticado exitoso. Sin la function deployed, los logs muestran un error pero la UX no se rompe.
+
+Para activarla:
+
+1. Crear cuenta en [resend.com](https://resend.com) (free 3.000 emails/mes).
+2. Verificar dominio sender (ej. `dsr-maison.com`) o usar el sandbox `onboarding@resend.dev` para pruebas.
+3. Generar API key.
+4. Setear secrets en Supabase:
+   ```bash
+   supabase secrets set RESEND_API_KEY=re_xxx
+   supabase secrets set EMAIL_FROM='DSR Maison <reservas@dsr-maison.com>'
+   ```
+5. Deploy:
+   ```bash
+   supabase functions deploy send-appointment-email
+   ```
+6. Probar checkout y verificar que llegue email a la inbox del user.
+
+Recordatorio 24h antes de la cita queda como follow-up — requiere `pg_cron` que dispare la function diariamente.
+
 ---
 
 ## Cómo trabajar conmigo (Claude Code) en este repo

@@ -20,7 +20,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
 import { useUser } from '../data/UserProvider';
-import { confirmCheckout, incrementPromoUse } from '../lib/db';
+import { useUserData } from '../data/useUserData';
+import { useCatalog } from '../data/CatalogProvider';
+import {
+  confirmCheckout,
+  incrementPromoUse,
+  sendAppointmentEmail,
+} from '../lib/db';
 import { useToast } from '../components/atoms/Toast';
 
 function generateOrderId(): string {
@@ -36,16 +42,33 @@ export function CheckoutSuccess() {
   const cart = useCart();
   const { session, refreshProfile } = useUser();
   const userId = session?.user?.id ?? null;
+  const userEmail = session?.user?.email ?? null;
+  const userData = useUserData();
+  const { getArtisan, getService, getSettings } = useCatalog();
   const queryClient = useQueryClient();
   const { show: showToast } = useToast();
 
   // Snapshot del total ANTES de limpiar — sino se ve €0 en pantalla.
-  const [snapshot] = useState(() => ({
-    total: cart.subtotal,
-    count: cart.count,
-    orderId: generateOrderId(),
-    promoCode: cart.appliedPromoCode,
-  }));
+  // También capturamos el primer pending booking (si hay) para mandar el
+  // email de confirmación, dado que confirmCheckout va a borrar las pendings.
+  const [snapshot] = useState(() => {
+    const firstBooking = cart.pendingBookings[0];
+    return {
+      total: cart.subtotal,
+      count: cart.count,
+      orderId: generateOrderId(),
+      promoCode: cart.appliedPromoCode,
+      firstBooking: firstBooking
+        ? {
+            artisanId: firstBooking.artisanId,
+            serviceIds: firstBooking.serviceIds,
+            date: firstBooking.date,
+            time: firstBooking.time,
+            total: firstBooking.total,
+          }
+        : null,
+    };
+  });
 
   useEffect(() => {
     // Incrementar el contador de uso de la promo aplicada (si había una).
@@ -70,6 +93,35 @@ export function CheckoutSuccess() {
           });
           void queryClient.invalidateQueries({ queryKey: ['product_stocks'] });
           void refreshProfile();
+
+          // Email de confirmación (Edge Function "send-appointment-email").
+          // Sólo si hubo booking + el user tiene email. Fire-and-forget.
+          if (snapshot.firstBooking && userEmail) {
+            const settings = getSettings();
+            const ar = getArtisan(snapshot.firstBooking.artisanId);
+            const services = snapshot.firstBooking.serviceIds
+              .map(getService)
+              .filter((s): s is NonNullable<ReturnType<typeof getService>> => !!s)
+              .map((s) => (lang === 'es' ? s.es : s.en));
+            void sendAppointmentEmail({
+              to: userEmail,
+              recipientName: userData.fullName,
+              artisanName: ar?.name ?? '',
+              serviceNames: services,
+              date: snapshot.firstBooking.date,
+              time: snapshot.firstBooking.time,
+              total: snapshot.firstBooking.total,
+              currency: settings.currency,
+              lang,
+              salonName: settings.name,
+              salonAddress: settings.address,
+              salonCity: settings.city,
+              policyUrl: `${window.location.origin}/?route=legal&doc=cancellation`,
+            }).catch((err) => {
+              // eslint-disable-next-line no-console
+              console.error('[checkout] sendAppointmentEmail failed:', err);
+            });
+          }
         })
         .catch((err) => {
           // eslint-disable-next-line no-console
