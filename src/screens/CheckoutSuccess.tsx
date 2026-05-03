@@ -18,6 +18,7 @@ import {
 } from '../components/atoms';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
+import { incrementPromoUse } from '../lib/db';
 
 function generateOrderId(): string {
   // 6-digit random; suficiente para mock
@@ -36,9 +37,20 @@ export function CheckoutSuccess() {
     total: cart.subtotal,
     count: cart.count,
     orderId: generateOrderId(),
+    promoCode: cart.appliedPromoCode,
   }));
 
   useEffect(() => {
+    // Incrementar el contador de uso de la promo aplicada (si había una).
+    // Atómico vía RPC SECURITY DEFINER en Supabase. Fire-and-forget — el
+    // checkout ya pasó desde la perspectiva del cliente; un fallo aquí solo
+    // significa que el contador de admin queda atrás.
+    if (snapshot.promoCode) {
+      void incrementPromoUse(snapshot.promoCode).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[checkout] incrementPromoUse failed:', err);
+      });
+    }
     cart.clear();
     // intencional: solo en mount
     // eslint-disable-next-line react-hooks/exhaustive-deps

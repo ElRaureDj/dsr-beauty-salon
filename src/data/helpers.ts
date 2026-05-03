@@ -58,11 +58,15 @@ function minutesToHHMM(min: number): string {
  *
  * La disponibilidad de cada slot dentro del rango sigue siendo pseudo-random
  * con seed por id, para que la demo se vea estable y consistente.
+ *
+ * `startDate` por defecto es hoy. Antes era `new Date('2026-05-02')` para
+ * estabilizar screenshots de demo, pero en producción eso quedaba siempre
+ * en mayo de 2026 sin importar la fecha real.
  */
 export function buildSchedule(
   artisanId: string,
   schedule?: ArtisanSchedule,
-  startDate: Date = new Date('2026-05-02'),
+  startDate: Date = new Date(),
 ): ScheduleDay[] {
   const days: ScheduleDay[] = [];
   const seed = artisanId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);

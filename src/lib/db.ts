@@ -864,6 +864,24 @@ export async function deletePromo(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Incrementa atómicamente promo.used_count si la promo es válida.
+ * Wrapper sobre la RPC `increment_promo_use` (security definer, ver 0009).
+ *
+ * - Devuelve true si se incrementó.
+ * - Devuelve false si la promo no existe / está inactiva / agotada / expirada.
+ *   (En esos casos, el customer ya recibió el descuento — el caller decide
+ *   qué hacer; en práctica solo loggeamos.)
+ */
+export async function incrementPromoUse(code: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('increment_promo_use', {
+    promo_code: code,
+  });
+  if (error) throw error;
+  // La RPC devuelve un setof — si está vacío, no se incrementó.
+  return Array.isArray(data) && data.length > 0;
+}
+
 // ---------- Product Stocks ----------
 
 interface DbProductStock {
