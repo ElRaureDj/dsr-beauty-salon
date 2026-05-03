@@ -21,9 +21,11 @@ Originalmente un bundle de Claude Design (HTML + JSX prototípico) que fue porta
 - **Fase 1** (`phase1/original-code`) ✅ — mergeada en PR #1. App completa funcionando 100% con `localStorage`. Incluye desde el origen: promos en cart, reseñas en Service/Artisan, badge de bajo stock en Product, combo booking end-to-end con descuento.
 - **Fase 2** (`phase2/moving-online`) ✅ — mergeada en PR #2. Schema + seed inicial, cliente Supabase, magic-link auth real (PKCE), catálogo (products/services/artisans/nail_looks/gift_card_designs) leyendo desde DB con TanStack Query, profiles + `useUserData`, personal info editable, direcciones de envío US-only.
 - **Fase 7** (`phase2/conectando-con-el-exterior`) ✅ — mergeada en PR #3 (`f063a8e`). cart_items + pending_bookings session-aware (`cfa1e6a`), admin role real `profile.is_admin` (`d4e96bb`), combos/promos al backend (`91d4b84`), stocks/schedules/tier_rules/reviews/settings/variants a DB (`3d2abd3`), products/services/artisans writes a Supabase (`b9c8562`). Cerró la migración del catálogo.
-- **Fase 8** (`phase2/missing-details`, branch actual) 🚧 — admin cross-user reads. AppointmentsSection y ReportsSection ahora leen `pending_bookings` de todas las clientas vía RLS admin. Migration `0007_admin_cross_user.sql` agrega policies admin SELECT en `pending_bookings` y `profiles`. Nuevo fetcher `fetchAllPendingBookingsForAdmin()` en `db.ts` combina bookings + profile (nombre/email del cliente). ReportsSection: KPIs reales (revenue total/upcoming/past, ticket medio, clientas únicas, top artist, top services, breakdown 6 meses).
+- **Fase 8** (`phase2/missing-details`, branch actual) 🚧 — admin cross-user reads + schedule por día.
+  - **Cross-user admin reads** (commit `6c6988c`): AppointmentsSection y ReportsSection leen `pending_bookings` de todas las clientas vía RLS admin. Migration `0007_admin_cross_user.sql`. Nuevo fetcher `fetchAllPendingBookingsForAdmin()`. KPIs reales: revenue total/upcoming/past, ticket medio, clientas únicas, top artist, top services, breakdown 6 meses.
+  - **Schedule per-day**: tabla `artisan_schedules` rediseñada a `artisan_schedule_days(artisan_id, weekday)` PK compuesta. Cada artista tiene 7 entradas (lun-dom), cada una con su propio `is_working` + `start_time` + `end_time`. Migration `0008_schedule_per_day.sql` migra datos existentes. UI en `SchedulesSection` muestra una fila por día con time pickers independientes. `buildSchedule()` ahora consume el schedule real para calcular dayOff y rango de slots (antes era seed determinista mock).
 
-> Próxima acción sugerida: aplicar migration 0007 en Supabase, verificar manualmente con varios users + bookings, y configurar Vercel.
+> Próxima acción sugerida: aplicar migrations 0007 + 0008 en Supabase, y configurar Vercel.
 
 ---
 
@@ -68,6 +70,7 @@ VITE_SUPABASE_ANON_KEY=sb_publishable__fYtbk7SYClaJyNAWgXQLA_NUstNSl-
 5. `0005_cart_and_bookings.sql` — `cart_items` (unique user_id+product_id) + `pending_bookings` con FKs a artisans/services/combos.
 6. `0006_admin.sql` — flag `is_admin boolean` en profiles, helper `is_admin() returns boolean security definer stable`, write policies para todas las tablas administrables, hardening `profiles_update_own` para evitar self-promotion.
 7. `0007_admin_cross_user.sql` — admin SELECT en `pending_bookings` (vista global de citas) y `profiles` (nombre/email del cliente en cada row de admin). Las policies `_own` siguen vivas para customers.
+8. `0008_schedule_per_day.sql` — reemplaza `artisan_schedules` (working_days jsonb + un único start/end) por `artisan_schedule_days(artisan_id, weekday)` PK compuesta con `is_working` + `start_time` + `end_time` por día. Migra automáticamente las rows viejas y backfilla artistas sin schedule previo. Permite "lun 09-18, sáb 10-14, dom off" estilo agenda real.
 
 ### Promoverse a admin
 

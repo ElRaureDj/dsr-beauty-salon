@@ -187,13 +187,20 @@ export interface Promo {
   active: boolean;
 }
 
-// Admin: agenda semanal por artista.
+// Admin: agenda semanal por artista — schedule por día.
+// Cada artista tiene 7 entradas (una por weekday), cada una con su propio
+// is_working / start_time / end_time. Permite horarios distintos por día.
 export type WeekDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export interface ArtisanScheduleDay {
+  weekday: WeekDay;
+  isWorking: boolean;
+  startTime: string; // HH:MM
+  endTime: string;   // HH:MM
+}
 export interface ArtisanSchedule {
   artisanId: string;
-  workingDays: Record<WeekDay, boolean>;
-  startTime: string; // HH:MM
-  endTime: string;
+  /** Indexado por weekday — siempre incluye los 7 días (working o no). */
+  days: Record<WeekDay, ArtisanScheduleDay>;
 }
 
 // Admin: reglas de puntos por tier.

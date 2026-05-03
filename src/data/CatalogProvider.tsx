@@ -51,7 +51,7 @@ import {
   updateSalonSettings,
   updateServiceDb,
   updateTierRule as dbUpdateTierRule,
-  upsertArtisanSchedule,
+  upsertArtisanScheduleDay,
   upsertProductStock,
   upsertServiceVariant,
   type VariantConfigLite,
@@ -72,6 +72,7 @@ import {
 import type {
   Artisan,
   ArtisanSchedule,
+  ArtisanScheduleDay,
   Combo,
   GiftCardDesign,
   NailLook,
@@ -82,6 +83,7 @@ import type {
   SalonSettings,
   Service,
   TierRule,
+  WeekDay,
 } from '../types';
 
 const PRODUCTS_KEY = 'dsr-admin-products-v1';
@@ -155,7 +157,11 @@ interface CatalogValue {
   deletePromo: (id: string) => void;
   // Horarios
   getSchedule: (artisanId: string) => ArtisanSchedule;
-  updateSchedule: (artisanId: string, fields: Partial<ArtisanSchedule>) => void;
+  updateScheduleDay: (
+    artisanId: string,
+    weekday: WeekDay,
+    fields: Partial<Omit<ArtisanScheduleDay, 'weekday'>>,
+  ) => void;
   // Reglas de tier
   getTierRules: () => TierRule[];
   updateTierRule: (
@@ -210,11 +216,17 @@ const CatalogCtx = createContext<CatalogValue>({
   getSchedule: (id) =>
     SEED_SCHEDULES[id] ?? {
       artisanId: id,
-      workingDays: { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: false },
-      startTime: '10:00',
-      endTime: '20:00',
+      days: {
+        mon: { weekday: 'mon', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        tue: { weekday: 'tue', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        wed: { weekday: 'wed', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        thu: { weekday: 'thu', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        fri: { weekday: 'fri', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        sat: { weekday: 'sat', isWorking: true, startTime: '10:00', endTime: '20:00' },
+        sun: { weekday: 'sun', isWorking: false, startTime: '10:00', endTime: '20:00' },
+      },
     },
-  updateSchedule: noop,
+  updateScheduleDay: noop,
   getTierRules: () => SEED_TIER_RULES,
   updateTierRule: noop,
   getReviews: () => SEED_REVIEWS,
@@ -772,46 +784,50 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [queryClient, invalidatePromos],
   );
 
-  // Horarios — leídos desde DB.
-  const DEFAULT_WORKING_DAYS = useMemo(
+  // Horarios — schedule por día. Cada artist tiene 7 entries.
+  const DEFAULT_WEEK = useMemo<Record<WeekDay, ArtisanScheduleDay>>(
     () => ({
-      mon: true, tue: true, wed: true, thu: true,
-      fri: true, sat: true, sun: false,
+      mon: { weekday: 'mon', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      tue: { weekday: 'tue', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      wed: { weekday: 'wed', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      thu: { weekday: 'thu', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      fri: { weekday: 'fri', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      sat: { weekday: 'sat', isWorking: true, startTime: '10:00', endTime: '20:00' },
+      sun: { weekday: 'sun', isWorking: false, startTime: '10:00', endTime: '20:00' },
     }),
     [],
   );
   const getSchedule = useCallback(
     (artisanId: string): ArtisanSchedule =>
-      dbSchedules[artisanId] ?? {
-        artisanId,
-        workingDays: DEFAULT_WORKING_DAYS,
-        startTime: '10:00',
-        endTime: '20:00',
-      },
-    [dbSchedules, DEFAULT_WORKING_DAYS],
+      dbSchedules[artisanId] ?? { artisanId, days: DEFAULT_WEEK },
+    [dbSchedules, DEFAULT_WEEK],
   );
-  const updateSchedule = useCallback(
-    (artisanId: string, fields: Partial<ArtisanSchedule>) => {
-      const current = dbSchedules[artisanId] ?? {
+  const updateScheduleDay = useCallback(
+    (
+      artisanId: string,
+      weekday: WeekDay,
+      fields: Partial<Omit<ArtisanScheduleDay, 'weekday'>>,
+    ) => {
+      const current = dbSchedules[artisanId] ?? { artisanId, days: DEFAULT_WEEK };
+      const currentDay = current.days[weekday];
+      const nextDay: ArtisanScheduleDay = { ...currentDay, ...fields, weekday };
+      const nextSchedule: ArtisanSchedule = {
         artisanId,
-        workingDays: DEFAULT_WORKING_DAYS,
-        startTime: '10:00',
-        endTime: '20:00',
+        days: { ...current.days, [weekday]: nextDay },
       };
-      const next = { ...current, ...fields };
       queryClient.setQueryData<Record<string, ArtisanSchedule>>(
         ['artisan_schedules'],
-        (prev) => ({ ...(prev ?? {}), [artisanId]: next }),
+        (prev) => ({ ...(prev ?? {}), [artisanId]: nextSchedule }),
       );
-      void upsertArtisanSchedule(artisanId, next)
+      void upsertArtisanScheduleDay(artisanId, weekday, fields)
         .then(() => invalidateSchedules())
         .catch((err) => {
           // eslint-disable-next-line no-console
-          console.error('[catalog] updateSchedule failed:', err);
+          console.error('[catalog] updateScheduleDay failed:', err);
           void invalidateSchedules();
         });
     },
-    [queryClient, invalidateSchedules, dbSchedules, DEFAULT_WORKING_DAYS],
+    [queryClient, invalidateSchedules, dbSchedules, DEFAULT_WEEK],
   );
 
   // Tier rules — leídos desde DB.
@@ -915,7 +931,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       updatePromo,
       deletePromo,
       getSchedule,
-      updateSchedule,
+      updateScheduleDay,
       getTierRules,
       updateTierRule,
       getReviews,
@@ -960,7 +976,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       updatePromo,
       deletePromo,
       getSchedule,
-      updateSchedule,
+      updateScheduleDay,
       getTierRules,
       updateTierRule,
       getReviews,

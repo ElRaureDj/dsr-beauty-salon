@@ -44,8 +44,15 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
-  const { getProduct, getService, getArtisan, getCombo, getAllServices, getAllArtisans } =
-    useCatalog();
+  const {
+    getProduct,
+    getService,
+    getArtisan,
+    getCombo,
+    getAllServices,
+    getAllArtisans,
+    getSchedule,
+  } = useCatalog();
 
   // Si venimos del drawer con un booking guardado, pre-cargamos el state.
   // Buscamos UNA sola vez (al mount) para no perder edits si la lista cambia.
@@ -92,7 +99,10 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
     if (!editingSnapshot) return 0;
     // Match the saved date contra el schedule actual del artista.
     // Si el día ya pasó (no está en la ventana de 7 días), default a 0.
-    const sch = buildSchedule(editingSnapshot.artisanId);
+    const sch = buildSchedule(
+      editingSnapshot.artisanId,
+      getSchedule(editingSnapshot.artisanId),
+    );
     const idx = sch.findIndex(
       (d) => d.date.toISOString().slice(0, 10) === editingSnapshot.date,
     );
@@ -150,7 +160,9 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const arObj = artisan && artisan !== 'any' ? getArtisan(artisan) : null;
   // For "any", just pick the first eligible artisan deterministically
   const effectiveArtisan = arObj ?? (artisan === 'any' ? eligibleArtisans[0] : null);
-  const schedule = effectiveArtisan ? buildSchedule(effectiveArtisan.id) : [];
+  const schedule = effectiveArtisan
+    ? buildSchedule(effectiveArtisan.id, getSchedule(effectiveArtisan.id))
+    : [];
 
   const stepsLabels = [
     t('selectService'),

@@ -9,6 +9,7 @@ import type {
   Address,
   Artisan,
   ArtisanSchedule,
+  ArtisanScheduleDay,
   CartItem,
   CategoryId,
   Combo,
@@ -902,28 +903,52 @@ export async function upsertProductStock(
   if (error) throw error;
 }
 
-// ---------- Artisan Schedules ----------
+// ---------- Artisan Schedules (per-day) ----------
+// Schema: artisan_schedule_days(artisan_id, weekday) PK, cada row con su
+// propio start/end e is_working. Migration 0008 reemplazó la tabla vieja
+// `artisan_schedules` (working_days jsonb + un único start/end).
 
-interface DbArtisanSchedule {
+const WEEKDAYS: WeekDay[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+interface DbArtisanScheduleDay {
   artisan_id: string;
-  working_days: Record<WeekDay, boolean>;
+  weekday: WeekDay;
+  is_working: boolean;
   start_time: string;
   end_time: string;
+}
+
+function defaultDay(weekday: WeekDay): ArtisanScheduleDay {
+  return {
+    weekday,
+    isWorking: weekday !== 'sun',
+    startTime: '10:00',
+    endTime: '20:00',
+  };
+}
+
+function emptyWeek(): Record<WeekDay, ArtisanScheduleDay> {
+  return Object.fromEntries(
+    WEEKDAYS.map((wd) => [wd, defaultDay(wd)]),
+  ) as Record<WeekDay, ArtisanScheduleDay>;
 }
 
 export async function fetchArtisanSchedules(): Promise<
   Record<string, ArtisanSchedule>
 > {
   const { data, error } = await supabase
-    .from('artisan_schedules')
-    .select('artisan_id, working_days, start_time, end_time');
+    .from('artisan_schedule_days')
+    .select('artisan_id, weekday, is_working, start_time, end_time');
   if (error) throw error;
+
   const out: Record<string, ArtisanSchedule> = {};
-  for (const row of data as DbArtisanSchedule[]) {
-    out[row.artisan_id] = {
-      artisanId: row.artisan_id,
-      workingDays: row.working_days,
-      // Postgres time -> 'HH:MM:SS'. Recortamos a 'HH:MM' para coincidir con TS.
+  for (const row of (data ?? []) as DbArtisanScheduleDay[]) {
+    if (!out[row.artisan_id]) {
+      out[row.artisan_id] = { artisanId: row.artisan_id, days: emptyWeek() };
+    }
+    out[row.artisan_id].days[row.weekday] = {
+      weekday: row.weekday,
+      isWorking: row.is_working,
       startTime: row.start_time.slice(0, 5),
       endTime: row.end_time.slice(0, 5),
     };
@@ -931,17 +956,22 @@ export async function fetchArtisanSchedules(): Promise<
   return out;
 }
 
-export async function upsertArtisanSchedule(
+/** Upsert de UNA entrada (artisan, weekday). Mucho más granular que antes. */
+export async function upsertArtisanScheduleDay(
   artisanId: string,
-  fields: Partial<ArtisanSchedule>,
+  weekday: WeekDay,
+  fields: Partial<Omit<ArtisanScheduleDay, 'weekday'>>,
 ): Promise<void> {
-  const update: Record<string, unknown> = { artisan_id: artisanId };
-  if (fields.workingDays !== undefined) update.working_days = fields.workingDays;
+  const update: Record<string, unknown> = {
+    artisan_id: artisanId,
+    weekday,
+  };
+  if (fields.isWorking !== undefined) update.is_working = fields.isWorking;
   if (fields.startTime !== undefined) update.start_time = fields.startTime;
   if (fields.endTime !== undefined) update.end_time = fields.endTime;
   const { error } = await supabase
-    .from('artisan_schedules')
-    .upsert(update, { onConflict: 'artisan_id' });
+    .from('artisan_schedule_days')
+    .upsert(update, { onConflict: 'artisan_id,weekday' });
   if (error) throw error;
 }
 
