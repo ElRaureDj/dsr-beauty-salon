@@ -75,8 +75,7 @@ export function Profile() {
       es: 'Cerrar sesión',
       en: 'Sign out',
       onClick: () => {
-        signOut();
-        go('auth');
+        void signOut().then(() => go('auth'));
       },
     },
   ];

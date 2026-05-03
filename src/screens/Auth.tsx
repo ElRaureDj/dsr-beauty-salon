@@ -1,9 +1,16 @@
-// DSR — Auth screen (mock).
-// Sign-in / sign-up con providers visuales (Apple, Google, WhatsApp, email).
-// Mock: no backend real. Click → loader 800ms → signIn(provider) → home.
-// Para auth de verdad haría falta integrar Supabase/Firebase/custom + Apple/Google/Meta SDKs.
+// DSR — Auth screen.
+// Email magic link real (Supabase). Apple/Google/WhatsApp visibles pero
+// deshabilitados con badge "Próximamente" hasta que se conecten en una
+// fase futura (requieren OAuth setup en Supabase + Apple Developer / Google Cloud).
+//
+// Flow:
+// 1. Usuario ingresa email → "Enviar enlace"
+// 2. Estado pasa a "sent" — pantalla "Revisa tu inbox"
+// 3. Usuario clickea link en su email → vuelve a la app autenticado
+// 4. onAuthStateChange en UserProvider actualiza signedIn → este screen
+//    detecta el cambio y navega a home automáticamente.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
 import {
@@ -18,34 +25,43 @@ import {
   Tiny,
 } from '../components/atoms';
 import { useRouter } from '../router/Router';
-import { useUser, type AuthProvider } from '../data/UserProvider';
+import { useUser } from '../data/UserProvider';
 import { IMG_ONBOARDING } from '../data/images';
+
+type Status = 'idle' | 'sending' | 'sent' | 'error';
 
 export function Auth() {
   const T = useTheme();
   const { t, lang, setLang } = useI18n();
   const { go } = useRouter();
-  const { signIn } = useUser();
+  const { signInWithEmail, signedIn } = useUser();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [pending, setPending] = useState<AuthProvider | null>(null);
+  const [status, setStatus] = useState<Status>('idle');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const heroSrc = IMG_ONBOARDING(2);
 
-  const handleProvider = (p: AuthProvider) => {
-    if (pending) return;
-    setPending(p);
-    // Simula round-trip OAuth para feedback visual.
-    setTimeout(() => {
-      signIn(p);
-      go('home');
-    }, 850);
+  // Si la sesión llega (magic link callback o ya estaba), saltar a home.
+  useEffect(() => {
+    if (signedIn) go('home');
+  }, [signedIn, go]);
+
+  const sendLink = async () => {
+    if (!email.trim() || status === 'sending') return;
+    setStatus('sending');
+    setErrorMsg(null);
+    const r = await signInWithEmail(email);
+    if (r.ok) {
+      setStatus('sent');
+    } else {
+      setStatus('error');
+      setErrorMsg(r.error);
+    }
   };
 
   const handleEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    handleProvider('email');
+    void sendLink();
   };
 
   return (
@@ -61,7 +77,6 @@ export function Auth() {
         position: 'relative',
       }}
     >
-      {/* Hero image with cream/dark fade depending on theme */}
       <div style={{ position: 'relative', height: 280, marginTop: 0 }}>
         <Img src={heroSrc} style={{ width: '100%', height: '100%' }} />
         <div
@@ -71,7 +86,6 @@ export function Auth() {
             background: `linear-gradient(180deg, rgba(${T.bgRgb},0.35) 0%, transparent 30%, transparent 55%, ${T.bg} 100%)`,
           }}
         />
-        {/* Lang toggle top-right */}
         <div style={{ position: 'absolute', top: 18, right: 18, zIndex: 10 }}>
           <div
             style={{
@@ -110,11 +124,10 @@ export function Auth() {
         </div>
       </div>
 
-      {/* Form */}
       <div style={{ padding: '0 28px 36px', position: 'relative', zIndex: 1 }}>
         <Eyebrow style={{ color: T.gold }}>DSR · Maison de Beauté</Eyebrow>
         <H1 style={{ fontSize: 36, marginTop: 8, fontStyle: 'italic' }}>
-          {t('authWelcome')}
+          {status === 'sent' ? t('authMagicLinkTitle') : t('authWelcome')}
         </H1>
         <Body
           muted
@@ -122,215 +135,252 @@ export function Auth() {
             marginTop: 10,
             fontSize: 13,
             lineHeight: 1.5,
-            maxWidth: 300,
+            maxWidth: 320,
           }}
         >
-          {t('authWelcomeSub')}
+          {status === 'sent'
+            ? t('authMagicLinkSub').replace('{email}', email)
+            : t('authWelcomeSub')}
         </Body>
         <GoldRule width={28} style={{ marginTop: 18 }} />
 
-        {/* Provider buttons */}
-        <div
-          style={{
-            marginTop: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-          }}
-        >
-          <ProviderButton
-            label={t('continueWithApple')}
-            onClick={() => handleProvider('apple')}
-            pending={pending === 'apple'}
-            disabled={!!pending}
+        {status === 'sent' ? (
+          <CheckInbox
+            email={email}
+            onResend={() => sendLink()}
+            onChangeEmail={() => {
+              setStatus('idle');
+              setErrorMsg(null);
+            }}
             T={T}
             t={t}
-            icon={
-              <Ico size={16} color="#000">
-                {Icons.apple}
-              </Ico>
-            }
-            background="#fff"
-            color="#000"
+            lang={lang}
           />
-          <ProviderButton
-            label={t('continueWithGoogle')}
-            onClick={() => handleProvider('google')}
-            pending={pending === 'google'}
-            disabled={!!pending}
-            T={T}
-            t={t}
-            icon={<GoogleG />}
-            background="#fff"
-            color="#000"
-          />
-          <ProviderButton
-            label={t('continueWithWhatsApp')}
-            onClick={() => handleProvider('whatsapp')}
-            pending={pending === 'whatsapp'}
-            disabled={!!pending}
-            T={T}
-            t={t}
-            icon={<WhatsAppBubble />}
-            background="#25D366"
-            color="#fff"
-          />
-        </div>
+        ) : (
+          <>
+            {/* Provider buttons — visualmente presentes pero deshabilitados. */}
+            <div
+              style={{
+                marginTop: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <ProviderButton
+                label={t('continueWithApple')}
+                T={T}
+                t={t}
+                icon={
+                  <Ico size={16} color="#000">
+                    {Icons.apple}
+                  </Ico>
+                }
+                background="#fff"
+                color="#000"
+              />
+              <ProviderButton
+                label={t('continueWithGoogle')}
+                T={T}
+                t={t}
+                icon={<GoogleG />}
+                background="#fff"
+                color="#000"
+              />
+              <ProviderButton
+                label={t('continueWithWhatsApp')}
+                T={T}
+                t={t}
+                icon={<WhatsAppBubble />}
+                background="#25D366"
+                color="#fff"
+              />
+            </div>
 
-        {/* Or divider */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                margin: '22px 0 16px',
+              }}
+            >
+              <div style={{ flex: 1, height: 1, background: T.line }} />
+              <Tiny muted style={{ fontSize: 10, letterSpacing: 1.6 }}>
+                {t('authOr')}
+              </Tiny>
+              <div style={{ flex: 1, height: 1, background: T.line }} />
+            </div>
+
+            <form onSubmit={handleEmail}>
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t('authEmailLabel')}
+                disabled={status === 'sending'}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  background: T.surface,
+                  border: 'none',
+                  boxShadow: `inset 0 0 0 1px ${
+                    status === 'error' ? T.gold : T.line
+                  }`,
+                  color: T.text,
+                  fontFamily: T.sans,
+                  fontSize: 13,
+                  outline: 'none',
+                  marginBottom: 14,
+                }}
+              />
+              <Btn
+                disabled={status === 'sending' || !email.trim()}
+                onClick={() => void sendLink()}
+              >
+                {status === 'sending' ? t('authSending') : t('authSendLink')}
+              </Btn>
+            </form>
+
+            {status === 'error' && errorMsg && (
+              <Tiny
+                style={{
+                  marginTop: 12,
+                  color: T.gold,
+                  letterSpacing: 0.4,
+                  textTransform: 'none',
+                  fontSize: 11,
+                }}
+              >
+                {errorMsg}
+              </Tiny>
+            )}
+
+            <Tiny
+              muted
+              style={{
+                textAlign: 'center',
+                marginTop: 22,
+                fontSize: 10,
+                letterSpacing: 0.4,
+                textTransform: 'none',
+                lineHeight: 1.5,
+              }}
+            >
+              {lang === 'es'
+                ? 'Sin contraseña — te enviamos un enlace de un solo uso a tu email.'
+                : 'No password — we email you a one-time sign-in link.'}
+            </Tiny>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CheckInbox({
+  email,
+  onResend,
+  onChangeEmail,
+  T,
+  t,
+  lang,
+}: {
+  email: string;
+  onResend: () => void;
+  onChangeEmail: () => void;
+  T: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useI18n>['t'];
+  lang: 'es' | 'en';
+}) {
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div
+        style={{
+          padding: 24,
+          background: T.surface,
+          boxShadow: `inset 0 0 0 1px ${T.gold}33, 0 0 40px ${T.gold}15`,
+          textAlign: 'center',
+        }}
+      >
         <div
           style={{
+            width: 56,
+            height: 56,
+            borderRadius: 999,
+            margin: '0 auto 14px',
+            background: `radial-gradient(circle at 30% 30%, ${T.goldHi}, ${T.gold} 50%, ${T.goldDeep})`,
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            margin: '22px 0 16px',
-          }}
-        >
-          <div style={{ flex: 1, height: 1, background: T.line }} />
-          <Tiny muted style={{ fontSize: 10, letterSpacing: 1.6 }}>
-            {t('authOr')}
-          </Tiny>
-          <div style={{ flex: 1, height: 1, background: T.line }} />
-        </div>
-
-        {/* Email + password */}
-        <form onSubmit={handleEmail}>
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t('authEmailLabel')}
-            disabled={!!pending}
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              background: T.surface,
-              border: 'none',
-              boxShadow: `inset 0 0 0 1px ${T.line}`,
-              color: T.text,
-              fontFamily: T.sans,
-              fontSize: 13,
-              outline: 'none',
-              marginBottom: 8,
-            }}
-          />
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={t('authPasswordLabel')}
-            disabled={!!pending}
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              background: T.surface,
-              border: 'none',
-              boxShadow: `inset 0 0 0 1px ${T.line}`,
-              color: T.text,
-              fontFamily: T.sans,
-              fontSize: 13,
-              outline: 'none',
-              marginBottom: 14,
-            }}
-          />
-          <Btn
-            disabled={!!pending || !email.trim()}
-            onClick={() => handleEmail({ preventDefault: () => {} } as React.FormEvent)}
-          >
-            {pending === 'email' ? t('authSigningIn') : t('authSubmit')}
-          </Btn>
-        </form>
-
-        {/* No account / create */}
-        <div
-          style={{
-            textAlign: 'center',
-            marginTop: 18,
-            display: 'flex',
             justifyContent: 'center',
-            gap: 6,
+            boxShadow: `0 0 40px ${T.gold}55`,
           }}
         >
-          <Tiny
-            muted
-            style={{
-              letterSpacing: 0.4,
-              textTransform: 'none',
-              fontSize: 12,
-            }}
-          >
-            {t('authNoAccount')}
-          </Tiny>
-          <button
-            onClick={() => handleProvider('email')}
-            disabled={!!pending}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              fontFamily: T.sans,
-              fontSize: 12,
-              fontWeight: 500,
-              letterSpacing: 0.4,
-              color: T.gold,
-              textDecoration: 'underline',
-              textUnderlineOffset: 3,
-            }}
-          >
-            {t('authCreateAccount')}
-          </button>
+          <Ico size={22} color="#0A0908" stroke={1.6}>
+            {Icons.mail}
+          </Ico>
         </div>
-
-        {/* Guest */}
-        <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <button
-            onClick={() => handleProvider('guest')}
-            disabled={!!pending}
-            className="dsr-press"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '6px 0',
-              cursor: 'pointer',
-              fontFamily: T.sans,
-              fontSize: 11,
-              fontWeight: 500,
-              letterSpacing: 1.6,
-              textTransform: 'uppercase',
-              color: T.textMuted,
-            }}
-          >
-            {t('authGuest')}
-          </button>
-        </div>
-
-        {/* Mock disclaimer */}
-        <Tiny
+        <Body
           style={{
-            textAlign: 'center',
-            marginTop: 20,
-            fontSize: 9,
-            letterSpacing: 1.4,
-            color: T.textFaint,
+            fontSize: 13,
+            fontFamily: T.mono,
+            letterSpacing: 0.5,
+            wordBreak: 'break-all',
           }}
         >
-          {t('authMockNote')}
-        </Tiny>
+          {email}
+        </Body>
       </div>
+
+      <button
+        onClick={onResend}
+        className="dsr-press"
+        style={{
+          marginTop: 18,
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          padding: '12px 0',
+          cursor: 'pointer',
+          color: T.gold,
+          fontFamily: T.sans,
+          fontSize: 11,
+          letterSpacing: 1.4,
+          textTransform: 'uppercase',
+          fontWeight: 500,
+        }}
+      >
+        {t('authResend')}
+      </button>
+
+      <button
+        onClick={onChangeEmail}
+        className="dsr-press"
+        style={{
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          padding: '8px 0',
+          cursor: 'pointer',
+          color: T.textMuted,
+          fontFamily: T.sans,
+          fontSize: 10,
+          letterSpacing: 1.4,
+          textTransform: 'uppercase',
+          fontWeight: 500,
+        }}
+      >
+        {lang === 'es' ? 'Usar otro email' : 'Use another email'}
+      </button>
     </div>
   );
 }
 
 interface ProviderButtonProps {
   label: string;
-  onClick: () => void;
-  pending: boolean;
-  disabled: boolean;
   T: ReturnType<typeof useTheme>;
-  t: (key: 'authSigningIn') => string;
+  t: ReturnType<typeof useI18n>['t'];
   icon: React.ReactNode;
   background: string;
   color: string;
@@ -338,9 +388,6 @@ interface ProviderButtonProps {
 
 function ProviderButton({
   label,
-  onClick,
-  pending,
-  disabled,
   T,
   t,
   icon,
@@ -349,8 +396,8 @@ function ProviderButton({
 }: ProviderButtonProps) {
   return (
     <button
-      className="dsr-press"
-      onClick={disabled ? undefined : onClick}
+      disabled
+      title={t('authComingSoon')}
       style={{
         width: '100%',
         height: 50,
@@ -363,29 +410,37 @@ function ProviderButton({
         letterSpacing: 1.6,
         textTransform: 'uppercase',
         border: 'none',
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        cursor: 'not-allowed',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 12,
-        opacity: disabled && !pending ? 0.5 : 1,
-        transition: 'opacity .2s',
+        opacity: 0.45,
+        position: 'relative',
       }}
     >
-      {pending ? (
-        <span>{t('authSigningIn')}</span>
-      ) : (
-        <>
-          {icon}
-          <span>{label}</span>
-        </>
-      )}
+      {icon}
+      <span>{label}</span>
+      <span
+        style={{
+          position: 'absolute',
+          right: 12,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          fontSize: 8,
+          letterSpacing: 1.2,
+          color: '#000',
+          background: 'rgba(0,0,0,0.08)',
+          padding: '2px 6px',
+          fontWeight: 500,
+        }}
+      >
+        {t('authComingSoon')}
+      </span>
     </button>
   );
 }
 
-// Simple "G" decorativo — no es el logo oficial Google (multicolor),
-// es solo una glifa serif para evitar issues de brand guidelines.
 function GoogleG() {
   return (
     <span

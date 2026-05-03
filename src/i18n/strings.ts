@@ -207,6 +207,12 @@ export interface I18nStrings {
   appointmentNotFound: string;
   appointmentPastBadge: string;
   appointmentBackHome: string;
+  authSendLink: string;
+  authSending: string;
+  authMagicLinkTitle: string;
+  authMagicLinkSub: string;
+  authResend: string;
+  authComingSoon: string;
 }
 
 export type I18nKey = keyof I18nStrings;
@@ -417,6 +423,12 @@ export const I18N: Record<Lang, I18nStrings> = {
     appointmentNotFound: 'Cita no encontrada',
     appointmentPastBadge: 'Pasada',
     appointmentBackHome: 'Volver al inicio',
+    authSendLink: 'Enviar enlace de acceso',
+    authSending: 'Enviando...',
+    authMagicLinkTitle: 'Te enviamos un enlace',
+    authMagicLinkSub: 'Revisa tu inbox en {email}. Toca el enlace para entrar.',
+    authResend: 'Enviar de nuevo',
+    authComingSoon: 'Próximamente',
   },
   en: {
     welcome: 'Welcome',
@@ -623,5 +635,11 @@ export const I18N: Record<Lang, I18nStrings> = {
     appointmentNotFound: 'Appointment not found',
     appointmentPastBadge: 'Past',
     appointmentBackHome: 'Back to home',
+    authSendLink: 'Send sign-in link',
+    authSending: 'Sending...',
+    authMagicLinkTitle: 'We sent you a link',
+    authMagicLinkSub: 'Check your inbox at {email}. Tap the link to sign in.',
+    authResend: 'Resend',
+    authComingSoon: 'Coming soon',
   },
 };
