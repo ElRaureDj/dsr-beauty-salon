@@ -69,6 +69,7 @@ import {
   SEED_SCHEDULES,
   SEED_TIER_RULES,
 } from './admin-seeds';
+import { TIERS } from './tiers';
 import type {
   Artisan,
   ArtisanSchedule,
@@ -82,6 +83,7 @@ import type {
   Review,
   SalonSettings,
   Service,
+  Tier,
   TierRule,
   WeekDay,
 } from '../types';
@@ -164,6 +166,8 @@ interface CatalogValue {
   ) => void;
   // Reglas de tier
   getTierRules: () => TierRule[];
+  /** Tiers con thresholds reales de DB (id/name/color del seed estático). */
+  getTiers: () => Tier[];
   updateTierRule: (
     tierId: 'pearl' | 'gold' | 'noir',
     fields: Partial<Omit<TierRule, 'tierId'>>,
@@ -228,6 +232,7 @@ const CatalogCtx = createContext<CatalogValue>({
     },
   updateScheduleDay: noop,
   getTierRules: () => SEED_TIER_RULES,
+  getTiers: () => TIERS,
   updateTierRule: noop,
   getReviews: () => SEED_REVIEWS,
   respondToReview: noop,
@@ -832,6 +837,20 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
 
   // Tier rules — leídos desde DB.
   const getTierRules = useCallback(() => dbTierRules, [dbTierRules]);
+
+  // Tiers derivados: id/name/color del seed estático, min real de tier_rules,
+  // max = min del siguiente tier (último = ∞ proxy 999_999).
+  const getTiers = useCallback((): Tier[] => {
+    const ruleByTier = new Map(dbTierRules.map((r) => [r.tierId, r]));
+    const ordered = TIERS.map((staticTier) => ({
+      ...staticTier,
+      min: ruleByTier.get(staticTier.id)?.thresholdPoints ?? staticTier.min,
+    })).sort((a, b) => a.min - b.min);
+    return ordered.map((t, i, arr) => ({
+      ...t,
+      max: arr[i + 1]?.min ?? 999_999,
+    }));
+  }, [dbTierRules]);
   const updateTierRule = useCallback(
     (
       tierId: 'pearl' | 'gold' | 'noir',
@@ -933,6 +952,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       getSchedule,
       updateScheduleDay,
       getTierRules,
+      getTiers,
       updateTierRule,
       getReviews,
       respondToReview,
@@ -978,6 +998,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       getSchedule,
       updateScheduleDay,
       getTierRules,
+      getTiers,
       updateTierRule,
       getReviews,
       respondToReview,

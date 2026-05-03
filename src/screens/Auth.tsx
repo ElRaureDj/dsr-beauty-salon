@@ -26,6 +26,7 @@ import {
 } from '../components/atoms';
 import { useRouter } from '../router/Router';
 import { useUser } from '../data/UserProvider';
+import { useCatalog } from '../data/CatalogProvider';
 import { IMG_ONBOARDING } from '../data/images';
 
 type Status = 'idle' | 'sending' | 'sent' | 'error';
@@ -35,6 +36,8 @@ export function Auth() {
   const { t, lang, setLang } = useI18n();
   const { go } = useRouter();
   const { signInWithEmail, signedIn } = useUser();
+  const { getSettings } = useCatalog();
+  const settings = getSettings();
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -125,7 +128,7 @@ export function Auth() {
       </div>
 
       <div style={{ padding: '0 28px 36px', position: 'relative', zIndex: 1 }}>
-        <Eyebrow style={{ color: T.gold }}>DSR · Maison de Beauté</Eyebrow>
+        <Eyebrow style={{ color: T.gold }}>{settings.name}</Eyebrow>
         <H1 style={{ fontSize: 36, marginTop: 8, fontStyle: 'italic' }}>
           {status === 'sent' ? t('authMagicLinkTitle') : t('authWelcome')}
         </H1>

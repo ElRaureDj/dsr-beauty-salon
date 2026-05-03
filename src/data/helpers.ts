@@ -13,13 +13,18 @@ export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id);
 export const findNailLook = (id: string) => NAIL_LOOKS.find((n) => n.id === id);
 export const findGiftCardDesign = (id: string) => GIFTCARD_DESIGNS.find((g) => g.id === id);
 
-export function tierFor(points: number): Tier {
-  return TIERS.slice().reverse().find((t) => points >= t.min) || TIERS[0];
+/**
+ * Tier actual del usuario según sus puntos.
+ * Acepta `tiers` opcional — si se omite, cae al seed estático (TIERS).
+ * Pasa `useCatalog().getTiers()` cuando quieras los thresholds reales del admin.
+ */
+export function tierFor(points: number, tiers: Tier[] = TIERS): Tier {
+  return tiers.slice().reverse().find((t) => points >= t.min) || tiers[0];
 }
 
-export function nextTier(points: number): Tier | null {
-  const idx = TIERS.findIndex((t) => points >= t.min && points < t.max);
-  return TIERS[idx + 1] || null;
+export function nextTier(points: number, tiers: Tier[] = TIERS): Tier | null {
+  const idx = tiers.findIndex((t) => points >= t.min && points < t.max);
+  return tiers[idx + 1] || null;
 }
 
 export function greeting(lang: Lang, t: (k: 'goodMorning' | 'goodAfternoon' | 'goodEvening') => string): string {

@@ -28,13 +28,15 @@ export function Home() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const { getArtisan, getService, getAllArtisans, getCombos, getAllServices } = useCatalog();
+  const { getArtisan, getService, getAllArtisans, getCombos, getAllServices, getTiers } =
+    useCatalog();
   const { getUpcoming } = useAppointments();
   const user = useUserData();
   const featuredCombos = getCombos().filter((c) => c.popular);
   const allServicesForCombos = getAllServices();
-  const tier = tierFor(user.points);
-  const next = nextTier(user.points);
+  const tiers = getTiers();
+  const tier = tierFor(user.points, tiers);
+  const next = nextTier(user.points, tiers);
 
   const heroImg = IMG_HERO_SPRING();
   const upcoming = getUpcoming();
