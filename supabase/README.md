@@ -14,8 +14,22 @@ supabase/
    ├─ 0002_seed.sql           # datos iniciales (idempotente)
    ├─ 0003_profiles.sql       # tabla profiles + trigger on signup + RLS owner
    ├─ 0004_addresses.sql      # direcciones de envío por user + RLS owner
-   └─ 0005_cart_and_bookings.sql  # cart_items + pending_bookings por user
+   ├─ 0005_cart_and_bookings.sql  # cart_items + pending_bookings por user
+   └─ 0006_admin.sql          # is_admin flag + write policies para admins
 ```
+
+## Promover un user a admin
+
+Después de aplicar `0006_admin.sql`, ningún usuario tiene rol admin.
+Para promoverte a ti mismo (o a otro user que ya hizo signup):
+
+```sql
+update profiles set is_admin = true where email = 'tu@email.com';
+```
+
+Solo otros admins pueden cambiar este flag; los usuarios no-admin no
+pueden auto-promoverse desde el cliente (la policy `profiles_update_own`
+lo bloquea).
 
 ## Aplicar las migraciones
 

@@ -360,6 +360,7 @@ export interface DbProfile {
   spent: number;
   joined: string;
   preferred_artisans: string[];
+  is_admin: boolean;
 }
 
 /** Lee el profile del user actual (owner). RLS bloquea acceso a otros. */
@@ -367,7 +368,7 @@ export async function fetchMyProfile(): Promise<DbProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans',
+      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin',
     )
     .maybeSingle();
   if (error) throw error;
@@ -391,7 +392,7 @@ export async function updateMyProfile(
     .update(updates)
     .eq('id', userId)
     .select(
-      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans',
+      'id, email, full_name, display_name, avatar_url, points, visits, spent, joined, preferred_artisans, is_admin',
     )
     .maybeSingle();
   if (error) throw error;
