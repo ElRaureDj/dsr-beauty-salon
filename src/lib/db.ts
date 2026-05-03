@@ -8,10 +8,12 @@ import { supabase } from './supabase';
 import type {
   Address,
   Artisan,
+  CartItem,
   CategoryId,
   Combo,
   GiftCardDesign,
   NailLook,
+  PendingBooking,
   Perk,
   Product,
   Service,
@@ -508,6 +510,216 @@ export async function updateAddress(
 
 export async function deleteAddress(id: string): Promise<void> {
   const { error } = await supabase.from('addresses').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Cart Items (per-user) ----------
+
+interface DbCartItem {
+  id: string;
+  user_id: string;
+  product_id: string;
+  qty: number;
+}
+
+export async function fetchMyCartItems(): Promise<CartItem[]> {
+  const { data, error } = await supabase
+    .from('cart_items')
+    .select('product_id, qty');
+  if (error) throw error;
+  return (data as Pick<DbCartItem, 'product_id' | 'qty'>[]).map((row) => ({
+    productId: row.product_id,
+    qty: row.qty,
+  }));
+}
+
+/** Upsert: si ya existe el (user_id, product_id), suma qty. */
+export async function addCartItem(
+  userId: string,
+  productId: string,
+  qty: number,
+): Promise<void> {
+  // Buscar existente para sumar; si no existe, insertar.
+  const { data: existing } = await supabase
+    .from('cart_items')
+    .select('qty')
+    .eq('user_id', userId)
+    .eq('product_id', productId)
+    .maybeSingle();
+  if (existing) {
+    const next = (existing as { qty: number }).qty + qty;
+    const { error } = await supabase
+      .from('cart_items')
+      .update({ qty: next })
+      .eq('user_id', userId)
+      .eq('product_id', productId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('cart_items')
+      .insert({ user_id: userId, product_id: productId, qty });
+    if (error) throw error;
+  }
+}
+
+export async function setCartItemQty(
+  userId: string,
+  productId: string,
+  qty: number,
+): Promise<void> {
+  if (qty <= 0) {
+    const { error } = await supabase
+      .from('cart_items')
+      .delete()
+      .eq('user_id', userId)
+      .eq('product_id', productId);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from('cart_items')
+    .update({ qty })
+    .eq('user_id', userId)
+    .eq('product_id', productId);
+  if (error) throw error;
+}
+
+export async function removeCartItem(
+  userId: string,
+  productId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('cart_items')
+    .delete()
+    .eq('user_id', userId)
+    .eq('product_id', productId);
+  if (error) throw error;
+}
+
+export async function clearCartItems(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('cart_items')
+    .delete()
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+// ---------- Pending Bookings (per-user) ----------
+
+interface DbPendingBooking {
+  id: string;
+  user_id: string;
+  service_ids: string[];
+  artisan_id: string;
+  date: string;
+  time: string;
+  total: number;
+  duration: number;
+  notes: string | null;
+  variant: 'standard' | 'premium' | 'custom' | null;
+  addon_product_ids: string[];
+  combo_id: string | null;
+  discount_pct: number | null;
+}
+
+const PENDING_BOOKING_COLS =
+  'id, user_id, service_ids, artisan_id, date, time, total, duration, notes, variant, addon_product_ids, combo_id, discount_pct';
+
+function mapPendingBooking(row: DbPendingBooking): PendingBooking {
+  return {
+    id: row.id,
+    serviceIds: row.service_ids,
+    artisanId: row.artisan_id,
+    date: row.date,
+    time: row.time,
+    total: Number(row.total),
+    duration: row.duration,
+    notes: row.notes ?? undefined,
+    variant: row.variant ?? undefined,
+    addonProductIds:
+      row.addon_product_ids.length > 0 ? row.addon_product_ids : undefined,
+    comboId: row.combo_id ?? undefined,
+    discountPct: row.discount_pct ?? undefined,
+  };
+}
+
+export async function fetchMyPendingBookings(): Promise<PendingBooking[]> {
+  const { data, error } = await supabase
+    .from('pending_bookings')
+    .select(PENDING_BOOKING_COLS)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as DbPendingBooking[]).map(mapPendingBooking);
+}
+
+export async function addPendingBooking(
+  userId: string,
+  booking: Omit<PendingBooking, 'id'>,
+): Promise<PendingBooking> {
+  const { data, error } = await supabase
+    .from('pending_bookings')
+    .insert({
+      user_id: userId,
+      service_ids: booking.serviceIds,
+      artisan_id: booking.artisanId,
+      date: booking.date,
+      time: booking.time,
+      total: booking.total,
+      duration: booking.duration,
+      notes: booking.notes ?? null,
+      variant: booking.variant ?? null,
+      addon_product_ids: booking.addonProductIds ?? [],
+      combo_id: booking.comboId ?? null,
+      discount_pct: booking.discountPct ?? null,
+    })
+    .select(PENDING_BOOKING_COLS)
+    .single();
+  if (error) throw error;
+  return mapPendingBooking(data as DbPendingBooking);
+}
+
+export async function updatePendingBooking(
+  id: string,
+  updates: Partial<Omit<PendingBooking, 'id'>>,
+): Promise<PendingBooking> {
+  const dbUpdates: Record<string, unknown> = {};
+  if (updates.serviceIds !== undefined) dbUpdates.service_ids = updates.serviceIds;
+  if (updates.artisanId !== undefined) dbUpdates.artisan_id = updates.artisanId;
+  if (updates.date !== undefined) dbUpdates.date = updates.date;
+  if (updates.time !== undefined) dbUpdates.time = updates.time;
+  if (updates.total !== undefined) dbUpdates.total = updates.total;
+  if (updates.duration !== undefined) dbUpdates.duration = updates.duration;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes ?? null;
+  if (updates.variant !== undefined) dbUpdates.variant = updates.variant ?? null;
+  if (updates.addonProductIds !== undefined)
+    dbUpdates.addon_product_ids = updates.addonProductIds ?? [];
+  if (updates.comboId !== undefined) dbUpdates.combo_id = updates.comboId ?? null;
+  if (updates.discountPct !== undefined)
+    dbUpdates.discount_pct = updates.discountPct ?? null;
+
+  const { data, error } = await supabase
+    .from('pending_bookings')
+    .update(dbUpdates)
+    .eq('id', id)
+    .select(PENDING_BOOKING_COLS)
+    .single();
+  if (error) throw error;
+  return mapPendingBooking(data as DbPendingBooking);
+}
+
+export async function removePendingBooking(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('pending_bookings')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function clearPendingBookings(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('pending_bookings')
+    .delete()
+    .eq('user_id', userId);
   if (error) throw error;
 }
 

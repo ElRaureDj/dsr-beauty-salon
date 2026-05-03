@@ -13,7 +13,8 @@ supabase/
    ├─ 0001_init.sql           # schema (tablas + RLS read-only pública)
    ├─ 0002_seed.sql           # datos iniciales (idempotente)
    ├─ 0003_profiles.sql       # tabla profiles + trigger on signup + RLS owner
-   └─ 0004_addresses.sql      # direcciones de envío por user + RLS owner
+   ├─ 0004_addresses.sql      # direcciones de envío por user + RLS owner
+   └─ 0005_cart_and_bookings.sql  # cart_items + pending_bookings por user
 ```
 
 ## Aplicar las migraciones
