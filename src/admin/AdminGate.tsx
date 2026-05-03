@@ -1,43 +1,48 @@
 // DSR Admin — Gate de acceso al panel.
-// Mock: pide un PIN demo (visible en el hint) que UserProvider valida.
-// En producción esto sería un check de rol/permiso contra el backend.
+// Real auth check: el usuario debe estar autenticado y tener
+// is_admin = true en su row de profiles. El "PIN demo" anterior fue
+// reemplazado por este flag persistido en DB.
+//
+// Para promover a un user a admin: en SQL Editor de Supabase →
+//   update profiles set is_admin = true where email = 'tu@email.com';
 
-import { useState } from 'react';
 import { useTheme } from '../theme/ThemeProvider';
 import { useI18n } from '../i18n/LangProvider';
-import { Body, Btn, Eyebrow, GhostBtn, H1, Numeral, Tiny } from '../components/atoms';
+import { Body, Btn, Eyebrow, GhostBtn, H1, Numeral } from '../components/atoms';
 import { useRouter } from '../router/Router';
-import { ADMIN_DEMO_PIN, useUser } from '../data/UserProvider';
-
-const PIN_LENGTH = ADMIN_DEMO_PIN.length;
+import { useUser } from '../data/UserProvider';
 
 export function AdminGate() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
-  const { unlockAdmin } = useUser();
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
-  const [shake, setShake] = useState(false);
+  const { signedIn, authLoading } = useUser();
 
-  const submit = (value: string) => {
-    if (unlockAdmin(value)) {
-      setError(false);
-      // El parent re-renderiza al cambiar adminUnlocked.
-      return;
-    }
-    setError(true);
-    setShake(true);
-    window.setTimeout(() => setShake(false), 400);
-    setPin('');
-  };
+  // Mientras el primer fetch de getSession resuelve, no decidimos nada
+  // todavía — evita un flash de "Inicia sesión" cuando ya hay sesión válida.
+  if (authLoading) {
+    return (
+      <div
+        className="dsr"
+        style={{
+          width: '100vw',
+          minHeight: '100vh',
+          background: T.bg,
+          color: T.textMuted,
+          fontFamily: T.sans,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Body muted style={{ fontSize: 13, letterSpacing: 0.4 }}>
+          {lang === 'es' ? 'Verificando sesión…' : 'Verifying session…'}
+        </Body>
+      </div>
+    );
+  }
 
-  const handleChange = (raw: string) => {
-    const digits = raw.replace(/\D/g, '').slice(0, PIN_LENGTH);
-    setPin(digits);
-    setError(false);
-    if (digits.length === PIN_LENGTH) submit(digits);
-  };
+  const needsAuth = !signedIn;
 
   return (
     <div
@@ -56,13 +61,12 @@ export function AdminGate() {
     >
       <div
         style={{
-          width: 420,
+          width: 460,
           maxWidth: '100%',
           background: T.surface,
           padding: '44px 36px 36px',
           boxShadow: `inset 0 0 0 1px ${T.line}, 0 30px 80px rgba(0,0,0,0.4)`,
           textAlign: 'center',
-          animation: shake ? 'dsr-shake 0.4s' : undefined,
         }}
       >
         <Numeral value="·" style={{ fontSize: 18 }} />
@@ -76,68 +80,35 @@ export function AdminGate() {
             fontWeight: 300,
           }}
         >
-          {t('adminGateTitle')}
+          {needsAuth
+            ? t('adminGateAuthTitle')
+            : t('adminGateForbiddenTitle')}
         </H1>
         <Body
           muted
           style={{
-            marginTop: 12,
+            marginTop: 14,
             fontSize: 13,
             lineHeight: 1.6,
-            maxWidth: 320,
-            margin: '12px auto 0',
+            maxWidth: 360,
+            margin: '14px auto 0',
           }}
         >
-          {t('adminGateSub')}
+          {needsAuth
+            ? t('adminGateAuthSub')
+            : t('adminGateForbiddenSub')}
         </Body>
 
         <div style={{ marginTop: 28 }}>
-          <input
-            value={pin}
-            onChange={(e) => handleChange(e.target.value)}
-            inputMode="numeric"
-            autoFocus
-            aria-label={t('adminGatePinLabel')}
-            placeholder={'•'.repeat(PIN_LENGTH)}
-            style={{
-              width: '100%',
-              padding: '18px 14px',
-              background: T.bg,
-              border: 'none',
-              boxShadow: `inset 0 0 0 1px ${error ? T.gold : T.lineStrong}`,
-              color: T.text,
-              fontFamily: T.mono,
-              fontSize: 28,
-              letterSpacing: 18,
-              textAlign: 'center',
-              outline: 'none',
-              transition: 'box-shadow .2s',
-            }}
-          />
-          <Tiny
-            style={{
-              marginTop: 12,
-              color: error ? T.gold : T.textFaint,
-              letterSpacing: 0.4,
-              textTransform: 'none',
-              fontSize: 11,
-              minHeight: 14,
-            }}
-          >
-            {error
-              ? t('adminGateInvalid')
-              : `${t('adminGateHint')} ${ADMIN_DEMO_PIN}`}
-          </Tiny>
-        </div>
-
-        <div style={{ marginTop: 24 }}>
-          <Btn
-            onClick={() => submit(pin)}
-            disabled={pin.length !== PIN_LENGTH}
-            fullWidth
-          >
-            {t('adminGateEnter')}
-          </Btn>
+          {needsAuth ? (
+            <Btn onClick={() => go('auth')} fullWidth>
+              {t('adminGateSignInCta')}
+            </Btn>
+          ) : (
+            <Btn onClick={() => go('home')} fullWidth>
+              {t('adminGateBackHome')}
+            </Btn>
+          )}
           <GhostBtn
             onClick={() => go('home')}
             style={{ marginTop: 14, width: '100%', justifyContent: 'center' }}

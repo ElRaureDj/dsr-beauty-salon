@@ -27,7 +27,7 @@ export function Profile() {
   const { go } = useRouter();
   const { getArtisan, getService } = useCatalog();
   const { appointments } = useAppointments();
-  const { avatar, signOut } = useUser();
+  const { avatar, signOut, isAdmin } = useUser();
   const user = useUserData();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -87,11 +87,16 @@ export function Profile() {
       en: 'Replay welcome',
       onClick: handleResetOnboarding,
     },
-    {
-      es: 'Modo administrador',
-      en: 'Admin mode',
-      onClick: () => go('admin'),
-    },
+    // El item de admin solo aparece si el profile tiene is_admin = true.
+    ...(isAdmin
+      ? [
+          {
+            es: 'Modo administrador',
+            en: 'Admin mode',
+            onClick: () => go('admin'),
+          },
+        ]
+      : []),
     {
       es: 'Cerrar sesión',
       en: 'Sign out',

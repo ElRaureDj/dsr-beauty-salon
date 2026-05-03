@@ -92,10 +92,10 @@ function loadSection(): SectionId {
 
 export function AdminApp() {
   const T = useTheme();
-  const { lang, t } = useI18n();
+  const { lang } = useI18n();
   const { go } = useRouter();
   const { overriddenServiceIds } = useCatalog();
-  const { adminUnlocked, lockAdmin } = useUser();
+  const { isAdmin } = useUser();
   const [section, setSection] = useState<SectionId>(loadSection);
 
   useEffect(() => {
@@ -106,9 +106,10 @@ export function AdminApp() {
     }
   }, [section]);
 
-  // Gate: si el admin no está desbloqueado, mostrar el PIN screen.
-  // Después de todos los hooks para no romper Rules of Hooks.
-  if (!adminUnlocked) return <AdminGate />;
+  // Gate: solo admins reales (profile.is_admin = true) entran al panel.
+  // El PIN demo fue reemplazado por este check en la fase 7. Después de
+  // todos los hooks para no romper Rules of Hooks.
+  if (!isAdmin) return <AdminGate />;
 
   // Group sections for sidebar rendering
   const groupedSections = (
@@ -236,44 +237,13 @@ export function AdminApp() {
           ))}
         </nav>
 
-        {/* Footer: lock + back to customer app */}
+        {/* Footer: back to customer app */}
         <div
           style={{
             padding: '16px 22px',
             borderTop: `1px solid ${T.line}`,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
           }}
         >
-          <button
-            onClick={() => {
-              lockAdmin();
-              go('home');
-            }}
-            className="dsr-press"
-            style={{
-              width: '100%',
-              background: 'transparent',
-              border: 'none',
-              padding: '8px 0',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              color: T.textMuted,
-              fontFamily: T.sans,
-              fontSize: 10,
-              letterSpacing: 1.2,
-              textTransform: 'uppercase',
-              fontWeight: 500,
-            }}
-          >
-            <Ico size={11} color={T.textMuted}>
-              {Icons.close}
-            </Ico>
-            {t('adminLock')}
-          </button>
           <button
             onClick={() => go('home')}
             className="dsr-press"

@@ -1,8 +1,12 @@
-// DSR — Cart context con persistencia en localStorage.
-// La verdad de la bolsa: productos (items) + servicios pendientes (pendingBookings).
-// Subtotales y counts son derivados.
-// El estado del drawer (open/closed) vive acá para que cualquier consumidor
-// pueda abrirlo (TopChrome, Booking review, ProductDetail).
+// DSR — Cart context, session-aware.
+// - Sin sesión (guest): persiste en localStorage. Preserva el demo experience.
+// - Con sesión: lee/escribe en cart_items + pending_bookings de Supabase.
+//   Las mutations son optimistic — actualizan state local primero y luego
+//   dispatchan al backend en background (fire and forget). Los errores se
+//   loggean pero no rompen UX; el siguiente refetch normaliza divergencias.
+//
+// Auto-merge en sign-in: si el guest tenía items/bookings en localStorage,
+// se insertan en la DB del user y se limpia el localStorage.
 
 import {
   createContext,
@@ -15,6 +19,19 @@ import {
 } from 'react';
 import { PRODUCTS, SERVICES, ARTISANS } from '../data/catalog';
 import { useCatalog } from '../data/CatalogProvider';
+import { useUser } from '../data/UserProvider';
+import {
+  addCartItem,
+  addPendingBooking,
+  clearCartItems,
+  clearPendingBookings,
+  fetchMyCartItems,
+  fetchMyPendingBookings,
+  removeCartItem,
+  removePendingBooking,
+  setCartItemQty,
+  updatePendingBooking,
+} from '../lib/db';
 import type { CartItem, PendingBooking, Promo } from '../types';
 
 const ITEMS_KEY = 'dsr-cart-v1';
@@ -183,75 +200,176 @@ function generateBookingId(): string {
   return `pb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function logErr(action: string) {
+  return (err: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error(`[cart] ${action} failed:`, err);
+  };
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   // Catálogo con overrides — para que los precios mostrados reflejen
   // ediciones del admin sin que el customer recargue.
   const catalog = useCatalog();
+  const { session } = useUser();
+  const userId = session?.user?.id ?? null;
+
   const [items, setItems] = useState<CartItem[]>(loadItems);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>(loadBookings);
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(loadPromoCode);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Cuando cambia el contexto de auth: si llega un userId, mergear el guest
+  // cart en DB (one-shot) y luego refetch de la fuente de verdad. Si vamos
+  // a guest, restaurar lo que hay en localStorage.
   useEffect(() => {
+    if (!userId) {
+      setItems(loadItems());
+      setPendingBookings(loadBookings());
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        // Auto-merge: si el guest dejó items/bookings en localStorage, los
+        // subimos al backend del user y limpiamos local. Idempotente —
+        // addCartItem suma qty si ya existía.
+        const guestItems = loadItems();
+        for (const it of guestItems) {
+          await addCartItem(userId, it.productId, it.qty);
+        }
+        if (guestItems.length > 0) {
+          window.localStorage.removeItem(ITEMS_KEY);
+        }
+        const guestBookings = loadBookings();
+        for (const b of guestBookings) {
+          // Quitamos el id local antes de insertar — la DB asigna uno UUID.
+          const { id: _localId, ...rest } = b;
+          void _localId;
+          await addPendingBooking(userId, rest);
+        }
+        if (guestBookings.length > 0) {
+          window.localStorage.removeItem(BOOKINGS_KEY);
+        }
+
+        // Fetch fuente de verdad.
+        const [dbItems, dbBookings] = await Promise.all([
+          fetchMyCartItems(),
+          fetchMyPendingBookings(),
+        ]);
+        if (cancelled) return;
+        setItems(dbItems);
+        setPendingBookings(dbBookings);
+      } catch (err) {
+        logErr('initial sync')(err);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // Persist a localStorage solo en modo guest. Para users autenticados, la DB
+  // ya tiene la verdad — localStorage podría desincronizar con multi-tab.
+  useEffect(() => {
+    if (userId) return;
     save(ITEMS_KEY, items);
-  }, [items]);
+  }, [items, userId]);
 
   useEffect(() => {
+    if (userId) return;
     save(BOOKINGS_KEY, pendingBookings);
-  }, [pendingBookings]);
+  }, [pendingBookings, userId]);
 
+  // Promo siempre en localStorage (es session-level, no account data).
   useEffect(() => {
     save(PROMO_KEY, appliedPromoCode);
   }, [appliedPromoCode]);
 
-  const add = useCallback((productId: string, qty: number = 1) => {
-    if (qty <= 0) return;
-    setItems((prev) => {
-      const idx = prev.findIndex((it) => it.productId === productId);
-      if (idx === -1) return [...prev, { productId, qty }];
-      const next = [...prev];
-      next[idx] = { ...next[idx], qty: next[idx].qty + qty };
-      return next;
-    });
-  }, []);
+  const add = useCallback(
+    (productId: string, qty: number = 1) => {
+      if (qty <= 0) return;
+      setItems((prev) => {
+        const idx = prev.findIndex((it) => it.productId === productId);
+        if (idx === -1) return [...prev, { productId, qty }];
+        const next = [...prev];
+        next[idx] = { ...next[idx], qty: next[idx].qty + qty };
+        return next;
+      });
+      if (userId) addCartItem(userId, productId, qty).catch(logErr('add'));
+    },
+    [userId],
+  );
 
-  const setQty = useCallback((productId: string, qty: number) => {
-    setItems((prev) => {
-      if (qty <= 0) return prev.filter((it) => it.productId !== productId);
-      return prev.map((it) =>
-        it.productId === productId ? { ...it, qty } : it,
-      );
-    });
-  }, []);
+  const setQty = useCallback(
+    (productId: string, qty: number) => {
+      setItems((prev) => {
+        if (qty <= 0) return prev.filter((it) => it.productId !== productId);
+        return prev.map((it) =>
+          it.productId === productId ? { ...it, qty } : it,
+        );
+      });
+      if (userId) setCartItemQty(userId, productId, qty).catch(logErr('setQty'));
+    },
+    [userId],
+  );
 
-  const remove = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((it) => it.productId !== productId));
-  }, []);
+  const remove = useCallback(
+    (productId: string) => {
+      setItems((prev) => prev.filter((it) => it.productId !== productId));
+      if (userId) removeCartItem(userId, productId).catch(logErr('remove'));
+    },
+    [userId],
+  );
 
-  const addBooking = useCallback((booking: Omit<PendingBooking, 'id'>) => {
-    const id = generateBookingId();
-    setPendingBookings((prev) => [...prev, { ...booking, id }]);
-    return id;
-  }, []);
+  const addBooking = useCallback(
+    (booking: Omit<PendingBooking, 'id'>) => {
+      const localId = generateBookingId();
+      setPendingBookings((prev) => [...prev, { ...booking, id: localId }]);
+      if (userId) {
+        // Reemplazar el id local con el UUID real cuando vuelva la DB.
+        addPendingBooking(userId, booking)
+          .then((created) => {
+            setPendingBookings((prev) =>
+              prev.map((b) => (b.id === localId ? created : b)),
+            );
+          })
+          .catch(logErr('addBooking'));
+      }
+      return localId;
+    },
+    [userId],
+  );
 
   const updateBooking = useCallback(
     (id: string, updates: Partial<Omit<PendingBooking, 'id'>>) => {
       setPendingBookings((prev) =>
         prev.map((b) => (b.id === id ? { ...b, ...updates } : b)),
       );
+      if (userId) updatePendingBooking(id, updates).catch(logErr('updateBooking'));
     },
-    [],
+    [userId],
   );
 
-  const removeBooking = useCallback((id: string) => {
-    setPendingBookings((prev) => prev.filter((b) => b.id !== id));
-  }, []);
+  const removeBooking = useCallback(
+    (id: string) => {
+      setPendingBookings((prev) => prev.filter((b) => b.id !== id));
+      if (userId) removePendingBooking(id).catch(logErr('removeBooking'));
+    },
+    [userId],
+  );
 
   const clear = useCallback(() => {
     setItems([]);
     setPendingBookings([]);
     setAppliedPromoCode(null);
-  }, []);
+    if (userId) {
+      clearCartItems(userId).catch(logErr('clear items'));
+      clearPendingBookings(userId).catch(logErr('clear bookings'));
+    }
+  }, [userId]);
 
   const applyPromo = useCallback(
     (code: string): PromoApplyResult => {

@@ -193,12 +193,12 @@ export interface I18nStrings {
   lowStock: string;
   outOfStock: string;
   outOfStockShort: string;
-  adminGateTitle: string;
-  adminGateSub: string;
-  adminGatePinLabel: string;
-  adminGateHint: string;
-  adminGateInvalid: string;
-  adminGateEnter: string;
+  adminGateAuthTitle: string;
+  adminGateAuthSub: string;
+  adminGateForbiddenTitle: string;
+  adminGateForbiddenSub: string;
+  adminGateSignInCta: string;
+  adminGateBackHome: string;
   adminLock: string;
   appointmentTitle: string;
   appointmentReschedule: string;
@@ -447,12 +447,12 @@ export const I18N: Record<Lang, I18nStrings> = {
     lowStock: 'Quedan {n} unidades',
     outOfStock: 'Agotado',
     outOfStockShort: 'No disponible',
-    adminGateTitle: 'Acceso administrador',
-    adminGateSub: 'Este panel está reservado al equipo del salón. Ingresa el código de acceso para gestionar el catálogo, citas y operación.',
-    adminGatePinLabel: 'Código de acceso',
-    adminGateHint: 'Demo PIN ·',
-    adminGateInvalid: 'Código incorrecto',
-    adminGateEnter: 'Entrar al panel',
+    adminGateAuthTitle: 'Inicia sesión',
+    adminGateAuthSub: 'Este panel está reservado al equipo del salón. Inicia sesión para acceder al catálogo, citas y operación.',
+    adminGateForbiddenTitle: 'Sin permisos',
+    adminGateForbiddenSub: 'Tu cuenta no tiene rol de administrador. Si tu equipo te dio acceso, pide que te activen el rol.',
+    adminGateSignInCta: 'Iniciar sesión',
+    adminGateBackHome: 'Volver al inicio',
     adminLock: 'Cerrar panel',
     appointmentTitle: 'Tu cita',
     appointmentReschedule: 'Reagendar',
@@ -697,12 +697,12 @@ export const I18N: Record<Lang, I18nStrings> = {
     lowStock: 'Only {n} left',
     outOfStock: 'Out of stock',
     outOfStockShort: 'Unavailable',
-    adminGateTitle: 'Admin access',
-    adminGateSub: 'This panel is for the salon team only. Enter the access code to manage catalog, appointments and operations.',
-    adminGatePinLabel: 'Access code',
-    adminGateHint: 'Demo PIN ·',
-    adminGateInvalid: 'Wrong code',
-    adminGateEnter: 'Enter panel',
+    adminGateAuthTitle: 'Sign in',
+    adminGateAuthSub: "This panel is for the salon team only. Sign in to manage catalog, appointments and operations.",
+    adminGateForbiddenTitle: 'No access',
+    adminGateForbiddenSub: 'Your account does not have admin role. If your team gave you access, ask them to enable it.',
+    adminGateSignInCta: 'Sign in',
+    adminGateBackHome: 'Back to app',
     adminLock: 'Lock panel',
     appointmentTitle: 'Your appointment',
     appointmentReschedule: 'Reschedule',

@@ -25,10 +25,6 @@ import {
 } from '../lib/db';
 
 const AVATAR_KEY = 'dsr-user-avatar-v1';
-const ADMIN_UNLOCKED_KEY = 'dsr-admin-unlocked-v1';
-
-/** PIN demo del modo administrador. En producción vendría de un rol/JWT. */
-export const ADMIN_DEMO_PIN = '2486';
 
 /** Provider que efectivamente autenticó al usuario (lo que reporta Supabase). */
 export type AuthProvider =
@@ -63,14 +59,10 @@ interface UserValue {
    * cuando el usuario clickea el link y vuelve a la app.
    */
   signInWithEmail: (email: string) => Promise<SignInResult>;
-  /** Cierra sesión en Supabase + limpia el unlock de admin. */
+  /** Cierra sesión en Supabase. */
   signOut: () => Promise<void>;
-  /** True cuando se desbloqueó el modo administrador con el PIN demo. */
-  adminUnlocked: boolean;
-  /** Intenta desbloquear el admin con un PIN. */
-  unlockAdmin: (pin: string) => boolean;
-  /** Cierra el modo admin (lo vuelve a pedir). */
-  lockAdmin: () => void;
+  /** True si el profile actual tiene is_admin = true en la DB. */
+  isAdmin: boolean;
 }
 
 const UserCtx = createContext<UserValue>({
@@ -84,9 +76,7 @@ const UserCtx = createContext<UserValue>({
   updateProfile: async () => null,
   signInWithEmail: async () => ({ ok: false, error: 'No provider' }),
   signOut: async () => {},
-  adminUnlocked: false,
-  unlockAdmin: () => false,
-  lockAdmin: () => {},
+  isAdmin: false,
 });
 
 function loadAvatar(): string | null {
@@ -97,20 +87,11 @@ function loadAvatar(): string | null {
   }
 }
 
-function loadAdminUnlocked(): boolean {
-  try {
-    return window.localStorage.getItem(ADMIN_UNLOCKED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 export function UserProvider({ children }: { children: ReactNode }) {
   const [avatar, setAvatarState] = useState<string | null>(loadAvatar);
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [profile, setProfile] = useState<DbProfile | null>(null);
-  const [adminUnlocked, setAdminUnlocked] = useState<boolean>(loadAdminUnlocked);
 
   // Carga inicial + listener de cambios de sesión.
   useEffect(() => {
@@ -168,15 +149,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, [avatar]);
 
-  useEffect(() => {
-    try {
-      if (adminUnlocked) window.localStorage.setItem(ADMIN_UNLOCKED_KEY, '1');
-      else window.localStorage.removeItem(ADMIN_UNLOCKED_KEY);
-    } catch {
-      /* ignore */
-    }
-  }, [adminUnlocked]);
-
   const setAvatar = useCallback(
     (next: string | null) => {
       setAvatarState(next);
@@ -224,19 +196,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    // Sign out también cierra el modo admin: la siguiente sesión vuelve a pedirlo.
-    setAdminUnlocked(false);
   }, []);
 
-  const unlockAdmin = useCallback((pin: string): boolean => {
-    if (pin.trim() === ADMIN_DEMO_PIN) {
-      setAdminUnlocked(true);
-      return true;
+  // Limpiar el legacy localStorage del PIN mock (si existía).
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem('dsr-admin-unlocked-v1');
+    } catch {
+      /* ignore */
     }
-    return false;
   }, []);
-
-  const lockAdmin = useCallback(() => setAdminUnlocked(false), []);
 
   const provider = useMemo<AuthProvider | null>(() => {
     const p = session?.user?.app_metadata?.provider;
@@ -255,9 +224,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       updateProfile,
       signInWithEmail,
       signOut,
-      adminUnlocked,
-      unlockAdmin,
-      lockAdmin,
+      isAdmin: profile?.is_admin === true,
     }),
     [
       avatar,
@@ -269,9 +236,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       updateProfile,
       signInWithEmail,
       signOut,
-      adminUnlocked,
-      unlockAdmin,
-      lockAdmin,
     ],
   );
 
