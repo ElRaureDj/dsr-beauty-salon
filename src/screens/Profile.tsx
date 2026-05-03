@@ -69,7 +69,11 @@ export function Profile() {
       en: 'Shipping addresses',
       onClick: () => go('addresses'),
     },
-    { es: 'Favoritos', en: 'Favorites' },
+    {
+      es: 'Favoritos',
+      en: 'Favorites',
+      onClick: () => go('favorites'),
+    },
     {
       es: 'Métodos de pago',
       en: 'Payment methods',

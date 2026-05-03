@@ -330,7 +330,8 @@ export type RouteName =
   | 'appointment'
   | 'personal-info'
   | 'addresses'
-  | 'legal';
+  | 'legal'
+  | 'favorites';
 
 export type TabId = 'home' | 'services' | 'book' | 'rewards' | 'shop';
 

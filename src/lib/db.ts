@@ -1679,6 +1679,56 @@ export async function fetchAllAppointmentsForAdmin(): Promise<
   });
 }
 
+// ---------- Favorites (per-user) ----------
+// Tres tipos de target: product / service / artisan. Tabla en migration 0016.
+
+export type FavoriteKind = 'product' | 'service' | 'artisan';
+
+export interface Favorite {
+  kind: FavoriteKind;
+  targetId: string;
+}
+
+interface DbFavorite {
+  kind: FavoriteKind;
+  target_id: string;
+}
+
+export async function fetchMyFavorites(): Promise<Favorite[]> {
+  const { data, error } = await supabase
+    .from('favorites')
+    .select('kind, target_id');
+  if (error) throw error;
+  return ((data ?? []) as DbFavorite[]).map((r) => ({
+    kind: r.kind,
+    targetId: r.target_id,
+  }));
+}
+
+export async function addFavorite(
+  userId: string,
+  kind: FavoriteKind,
+  targetId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('favorites')
+    .insert({ user_id: userId, kind, target_id: targetId });
+  // Ignoramos unique violation (idempotente: ya estaba favoriteado).
+  if (error && (error as { code?: string }).code !== '23505') throw error;
+}
+
+export async function removeFavorite(
+  userId: string,
+  kind: FavoriteKind,
+  targetId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('favorites')
+    .delete()
+    .match({ user_id: userId, kind, target_id: targetId });
+  if (error) throw error;
+}
+
 // ---------- Service Variants ----------
 
 interface DbServiceVariant {

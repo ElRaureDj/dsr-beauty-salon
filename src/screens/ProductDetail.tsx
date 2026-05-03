@@ -17,6 +17,7 @@ import {
   Tiny,
 } from '../components/atoms';
 import { useCatalog } from '../data/CatalogProvider';
+import { useFavorites } from '../data/FavoritesProvider';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
 
@@ -32,6 +33,7 @@ export function ProductDetail({ id }: { id: string }) {
   const { go } = useRouter();
   const cart = useCart();
   const { getProduct, getStock } = useCatalog();
+  const { isFavorite, toggle: toggleFav } = useFavorites();
   const p = getProduct(id);
   const [tab, setTab] = useState(0);
   const [bag, setBag] = useState(false);
@@ -55,9 +57,35 @@ export function ProductDetail({ id }: { id: string }) {
       <HeaderBar
         onBack={() => go('shop')}
         right={
-          <Ico size={18} color={T.text}>
-            {Icons.heart}
-          </Ico>
+          <button
+            onClick={() => toggleFav('product', p.id)}
+            aria-label={
+              isFavorite('product', p.id)
+                ? lang === 'es'
+                  ? 'Quitar de favoritos'
+                  : 'Remove from favorites'
+                : lang === 'es'
+                  ? 'Añadir a favoritos'
+                  : 'Add to favorites'
+            }
+            className="dsr-press"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 4,
+              margin: -4,
+              cursor: 'pointer',
+              display: 'flex',
+            }}
+          >
+            <Ico
+              size={18}
+              color={isFavorite('product', p.id) ? T.gold : T.text}
+              stroke={isFavorite('product', p.id) ? 0 : 1.6}
+            >
+              {Icons.heart}
+            </Ico>
+          </button>
         }
       />
 

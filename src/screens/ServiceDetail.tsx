@@ -22,6 +22,7 @@ import { CATEGORIES } from '../data/catalog';
 import { IMG_SERVICE, IMG_SERVICE_DETAIL } from '../data/images';
 import { useRouter } from '../router/Router';
 import { useCatalog, useServiceVariants } from '../data/CatalogProvider';
+import { useFavorites } from '../data/FavoritesProvider';
 import { ReviewsSection } from '../components/ReviewsSection';
 import type { VariantId } from '../data/service-variants';
 
@@ -30,6 +31,7 @@ export function ServiceDetail({ id }: { id: string }) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getProduct, getService, getAllArtisans, getReviews } = useCatalog();
+  const { isFavorite, toggle: toggleFav } = useFavorites();
   const s = getService(id);
   const variantsConfig = useServiceVariants(id);
   const reviews = getReviews().filter((r) => r.serviceId === id);
@@ -77,9 +79,35 @@ export function ServiceDetail({ id }: { id: string }) {
       <HeaderBar
         onBack={() => go('services')}
         right={
-          <Ico size={18} color={T.text}>
-            {Icons.heart}
-          </Ico>
+          <button
+            onClick={() => toggleFav('service', s.id)}
+            aria-label={
+              isFavorite('service', s.id)
+                ? lang === 'es'
+                  ? 'Quitar de favoritos'
+                  : 'Remove from favorites'
+                : lang === 'es'
+                  ? 'Añadir a favoritos'
+                  : 'Add to favorites'
+            }
+            className="dsr-press"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 4,
+              margin: -4,
+              cursor: 'pointer',
+              display: 'flex',
+            }}
+          >
+            <Ico
+              size={18}
+              color={isFavorite('service', s.id) ? T.gold : T.text}
+              stroke={isFavorite('service', s.id) ? 0 : 1.6}
+            >
+              {Icons.heart}
+            </Ico>
+          </button>
         }
       />
       <div style={{ position: 'relative', height: 420 }}>

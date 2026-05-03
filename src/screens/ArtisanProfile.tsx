@@ -14,6 +14,7 @@ import {
   Tiny,
 } from '../components/atoms';
 import { useCatalog } from '../data/CatalogProvider';
+import { useFavorites } from '../data/FavoritesProvider';
 import { useRouter } from '../router/Router';
 import { ReviewsSection } from '../components/ReviewsSection';
 
@@ -22,6 +23,7 @@ export function ArtisanProfile({ id }: { id: string }) {
   const { lang } = useI18n();
   const { go } = useRouter();
   const { getArtisan, getAllServices, getReviews } = useCatalog();
+  const { isFavorite, toggle: toggleFav } = useFavorites();
   const ar = getArtisan(id);
   if (!ar) return null;
   const services = getAllServices().filter((s) => ar.cats.includes(s.cat));
@@ -32,9 +34,35 @@ export function ArtisanProfile({ id }: { id: string }) {
       <HeaderBar
         onBack={() => go('home')}
         right={
-          <Ico size={18} color="#fff">
-            {Icons.share}
-          </Ico>
+          <button
+            onClick={() => toggleFav('artisan', ar.id)}
+            aria-label={
+              isFavorite('artisan', ar.id)
+                ? lang === 'es'
+                  ? 'Quitar de favoritos'
+                  : 'Remove from favorites'
+                : lang === 'es'
+                  ? 'Añadir a favoritos'
+                  : 'Add to favorites'
+            }
+            className="dsr-press"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 4,
+              margin: -4,
+              cursor: 'pointer',
+              display: 'flex',
+            }}
+          >
+            <Ico
+              size={18}
+              color={isFavorite('artisan', ar.id) ? '#D4B886' : '#fff'}
+              stroke={isFavorite('artisan', ar.id) ? 0 : 1.6}
+            >
+              {Icons.heart}
+            </Ico>
+          </button>
         }
       />
       <div style={{ position: 'relative', height: 480 }}>

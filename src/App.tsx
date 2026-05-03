@@ -8,6 +8,7 @@ import { CartProvider } from './cart/CartProvider';
 import { UserProvider, useUser } from './data/UserProvider';
 import { CatalogProvider } from './data/CatalogProvider';
 import { AppointmentsProvider } from './data/AppointmentsProvider';
+import { FavoritesProvider } from './data/FavoritesProvider';
 import { CartDrawer, TabBar, ToastProvider, TopChrome } from './components/atoms';
 import type { RouteName, TabId } from './types';
 
@@ -34,6 +35,7 @@ import { AppointmentDetail } from './screens/AppointmentDetail';
 import { PersonalInfo } from './screens/PersonalInfo';
 import { Addresses } from './screens/Addresses';
 import { Legal } from './screens/Legal';
+import { Favorites } from './screens/Favorites';
 import type { LegalDocId } from './data/legal';
 
 // Configuración de chrome por route. Una sola tabla para evitar el footgun
@@ -65,6 +67,7 @@ const ROUTE_CHROME: Partial<Record<RouteName, RouteChrome>> = {
   'personal-info': { hideTabs: true },
   addresses: { hideTabs: true },
   legal: { hideTabs: true },
+  favorites: { hideTabs: true },
   // profile: avatar duplicado si chrome activo. Tabs ocultas también.
   profile: { hideTabs: true, hideChrome: true },
 };
@@ -130,6 +133,8 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
       return <Addresses />;
     case 'legal':
       return <Legal doc={(params.doc as LegalDocId) ?? 'cancellation'} />;
+    case 'favorites':
+      return <Favorites />;
     default:
       // unreachable but keeps the compiler happy
       go('home');
@@ -221,12 +226,14 @@ export default function App() {
           <UserProvider>
             <CatalogProvider>
               <AppointmentsProvider>
-                <CartProvider>
-                  <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
-                    <PrefsSync />
-                    <RootLayout onOnboardingDone={() => setSeen(true)} />
-                  </RouterProvider>
-                </CartProvider>
+                <FavoritesProvider>
+                  <CartProvider>
+                    <RouterProvider initial={{ name: seen ? 'home' : 'onboarding', params: {} }}>
+                      <PrefsSync />
+                      <RootLayout onOnboardingDone={() => setSeen(true)} />
+                    </RouterProvider>
+                  </CartProvider>
+                </FavoritesProvider>
               </AppointmentsProvider>
             </CatalogProvider>
           </UserProvider>
