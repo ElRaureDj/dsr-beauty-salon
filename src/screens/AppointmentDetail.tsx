@@ -29,6 +29,7 @@ import { useCatalog } from '../data/CatalogProvider';
 import { useUser } from '../data/UserProvider';
 import { useUserData } from '../data/useUserData';
 import { useRouter } from '../router/Router';
+import { buildIcsEvent, downloadIcs } from '../data/calendar';
 import type { Review } from '../types';
 
 interface Props {
@@ -40,7 +41,7 @@ export function AppointmentDetail({ id }: Props) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getById, cancel } = useAppointments();
-  const { getArtisan, getService, getReviews, createReview } = useCatalog();
+  const { getArtisan, getService, getReviews, createReview, getSettings } = useCatalog();
   const { session } = useUser();
   const userData = useUserData();
   const userId = session?.user?.id ?? null;
@@ -90,6 +91,29 @@ export function AppointmentDetail({ id }: Props) {
       service: appt.services[0],
       artisan: appt.artisan,
     });
+  };
+
+  const handleAddToCalendar = () => {
+    if (!ar) return;
+    const settings = getSettings();
+    const summary = services
+      .map((s) => (lang === 'es' ? s.es : s.en))
+      .join(' + ');
+    const description =
+      (lang === 'es' ? 'Cita en DSR con ' : 'DSR appointment with ') +
+      ar.name +
+      (appt.notes_es ? ` · ${appt.notes_es}` : '');
+    const ics = buildIcsEvent({
+      uid: `dsr-${appt.id}@dsr-maison.com`,
+      date: appt.date,
+      time: appt.time,
+      duration: appt.duration,
+      summary: `DSR · ${summary}`,
+      description,
+      location: `${settings.address}, ${settings.city}`,
+      timezone: settings.timezone,
+    });
+    downloadIcs(`dsr-cita-${appt.date}`, ics);
   };
 
   const handleCancel = () => {
@@ -387,6 +411,33 @@ export function AppointmentDetail({ id }: Props) {
             </Ico>
             {t('appointmentReschedule')}
           </Btn>
+          <button
+            onClick={handleAddToCalendar}
+            className="dsr-press"
+            style={{
+              width: '100%',
+              marginTop: 12,
+              background: 'transparent',
+              border: 'none',
+              padding: '12px 0',
+              cursor: 'pointer',
+              color: T.gold,
+              fontFamily: T.sans,
+              fontSize: 11,
+              letterSpacing: 1.4,
+              textTransform: 'uppercase',
+              fontWeight: 500,
+              display: 'inline-flex',
+              gap: 8,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ico size={12} color={T.gold}>
+              {Icons.cal}
+            </Ico>
+            {lang === 'es' ? 'Añadir al calendario' : 'Add to calendar'}
+          </button>
           <button
             onClick={handleCancel}
             className="dsr-press"

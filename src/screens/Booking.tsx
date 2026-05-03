@@ -27,6 +27,7 @@ import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
 import { fetchTakenSlots } from '../lib/db';
+import { buildIcsEvent, downloadIcs } from '../data/calendar';
 import type { CategoryId } from '../types';
 
 interface BookingProps {
@@ -54,6 +55,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
     getAllServices,
     getAllArtisans,
     getSchedule,
+    getSettings,
   } = useCatalog();
 
   // Si venimos del drawer con un booking guardado, pre-cargamos el state.
@@ -1065,7 +1067,31 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
               <Btn onClick={() => go('home')}>
                 {lang === 'es' ? 'Volver al inicio' : 'Back to home'}
               </Btn>
-              <GhostBtn onClick={() => go('home')} style={{ marginTop: 18 }}>
+              <GhostBtn
+                onClick={() => {
+                  if (!effectiveArtisan || time === null) return;
+                  const settings = getSettings();
+                  const summary = chosenSvcs
+                    .map((s) => (lang === 'es' ? s.es : s.en))
+                    .join(' + ');
+                  const description =
+                    (lang === 'es' ? 'Cita en DSR con ' : 'DSR appointment with ') +
+                    effectiveArtisan.name +
+                    (notes ? ` · ${notes}` : '');
+                  const ics = buildIcsEvent({
+                    uid: `dsr-${schedule[day].date.toISOString().slice(0, 10)}-${time}@dsr-maison.com`,
+                    date: schedule[day].date.toISOString().slice(0, 10),
+                    time,
+                    duration: totalMin,
+                    summary: `DSR · ${summary}`,
+                    description,
+                    location: `${settings.address}, ${settings.city}`,
+                    timezone: settings.timezone,
+                  });
+                  downloadIcs('dsr-cita', ics);
+                }}
+                style={{ marginTop: 18 }}
+              >
                 {lang === 'es' ? 'Añadir al calendario' : 'Add to calendar'}
               </GhostBtn>
             </div>
