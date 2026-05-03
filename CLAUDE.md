@@ -235,33 +235,52 @@ supabase/migrations/        # 0001..0006.sql
 
 ---
 
-## Pendientes (orden recomendado)
+## Backlog (post-auditoría)
 
-### Inmediato — cerrar Fase 8
-- **Aplicar migration `0007_admin_cross_user.sql`** en el proyecto Supabase (SQL Editor). Sin esto, el admin no puede leer `pending_bookings` / `profiles` de otras clientas y AppointmentsSection / ReportsSection se ven vacíos.
-- **Push `phase2/missing-details` y abrir PR #4 a main.**
+Items priorizados por urgencia, con la decisión del usuario sobre cada uno.
+Lo que está **en curso/abierto** lo voy ejecutando en orden; lo que está **en hold** queda documentado para retomar más adelante.
 
-### Deploy a Vercel
-- Importar repo en Vercel + configurar las 2 env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) en Production + Preview + Development.
-- En Supabase Dashboard → Authentication → URL Configuration: agregar el dominio de Vercel (`https://<proj>.vercel.app`) como Site URL y `https://<proj>-*.vercel.app/**` en Redirect URLs.
-- **Configurar SMTP custom** (Resend free tier 100/día, SendGrid o Postmark) para reemplazar el provider default de Supabase. El default tiene rate limit de ~4 emails/hora — bloquea testing con varios users.
+### En hold (decisión del usuario, no perder de vista)
+- **Apple Pay real** — Stripe SetupIntent + Apple Developer Account ($99/año). Mock visual hoy.
+- **OAuth Apple / Google** — botones en `Auth.tsx` con badge "Próximamente". Requiere Apple Dev + Google Cloud Console.
+- **WhatsApp login** — provider externo (Wassenger / Twilio Verify).
+- **Phone login + Web OTP** — depende de configurar SMS provider en Supabase (Twilio).
+- **Recomendaciones AI reales en Home** — hoy el "96% match" es hardcoded.
+- **Stories de artisans** — cards estáticas sin contenido al click.
+- **PWA manifest + service worker** — instalable como app, offline support.
+- **Roles admin granulares** — hoy `is_admin` es flag binario; manager / artist / recepcionista pendiente.
+- **Imágenes de producción** — todo el catálogo viene de pollinations.ai (cold-start 10-30s). Migrar a Supabase Storage cuando haya assets finales.
+- **Multi-tenant** — `tenant_id` en todas las tablas para múltiples sedes.
 
-### Auth & pagos reales
-- **OAuth Apple / Google con Supabase** — fase grande, requiere Apple Developer ($99/año) + Google Cloud Console. Los botones ya están en `Auth.tsx` con badge "Próximamente".
-- **Apple Pay real** — Stripe SetupIntent + Apple Pay JS, integrado en Bag y GiftBuy.
-- **WhatsApp login** — opcional, requiere provider externo (Wassenger, Twilio Verify) porque Supabase no lo trae nativo.
+### Resuelto
+- **Vercel deploy** ✅
+- **SMTP custom** ✅ (Supabase Pro plan)
+- **Migrations 0007-0014 aplicadas en Supabase** ✅
+- **Email template magic link bilingüe** ✅ pegado en dashboard
 
-### Admin — siguientes mejoras
-- **Tabla `appointments` real** con status `confirmed` / `completed` / `cancelled`. Hoy las "citas" del admin son `pending_bookings` (lo que el customer guarda en su bolsa). Para reservas confirmadas con pago real, hace falta un nuevo concepto.
-- **Cancelar / mover cita desde admin** — agregar policies admin UPDATE/DELETE en `pending_bookings` y CTAs en AppointmentsSection.
-- **Export CSV** de la vista de reportes para contabilidad mensual.
+### En ejecución (sprint actual)
+Bundles que estoy ejecutando consecutivamente sin esperar entre commits:
+1. **SEO básico** — Open Graph, favicon real, meta description.
+2. **Toast + loading skeletons globales** — atom infra para mutations.
+3. **Timezone Miami** — `salon_settings.timezone` = America/New_York; ajustes display.
+4. **Política de cancelación + términos** — modal/screen accesible, copy bilingüe con depósito tier-based.
+5. **Customer ve "Cancelada" distinta de "Pasada"**.
+6. **Calendar export (.ics)** — botón "Añadir al calendario" en Booking.
+7. **Favoritos** — tabla + UI mínima.
+8. **Buscador del TopChrome funcional**.
+9. **Code splitting** — lazy load admin + screens grandes.
+10. **Reagendar marca cita vieja como cancelada**.
+11. **Programa "amigas" / referidos** — link único por user, AMIGA50 funcional.
+12. **Gift cards reales** — tabla + flow de compra/canje.
+13. **Audit log admin** — quién cambió qué.
+14. **Tests críticos** — Vitest + RTL; checkout, tier multipliers, buildSchedule collision.
+15. **Sentry** — error tracking en producción.
+16. **Notificaciones email transaccional** — confirmación cita + recordatorio 24h. Necesita email del salón decidido.
 
-### Calidad
-- **Tests** — Vitest + React Testing Library; helpers deterministas y CatalogProvider son buenos primeros candidatos. No hay ninguno todavía.
-- **Accesibilidad** — auditar contraste, `aria-label` en botones de iconos, focus management al cambiar de ruta.
+> Acción pendiente del usuario: confirmar email de "no-reply" del salón (ej: `hola@dsr-maison.com` ya en settings o uno separado tipo `reservas@`).
 
-### Plataforma
-- **Multi-tenant** — el admin asume un solo salón. Para varias sedes haría falta un `tenant_id` en todas las tablas + selector + filtros RLS.
+### Conocidos a refactorear en otra pasada
+- **Currency display** — 48 sitios (`€{x}`) hardcoded en `src/screens/*` y `src/admin/sections/*`. La sede cambió a Miami con `currency = 'USD'`, pero solo `ReportsSection` lee `settings.currency` para el símbolo. Sitios customer (Bag, CartDrawer, ProductDetail, ServiceDetail, Booking, AppointmentDetail, NailLookDetail, Home, Profile) y los admin (CatalogList, CombosSection, VariantsSection, etc) muestran "€". Plan: helper `formatCurrency(n, settings.currency)` o hook `useCurrencySymbol()` + reemplazo en sitios customer-facing primero.
 
 ---
 

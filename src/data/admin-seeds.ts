@@ -140,16 +140,16 @@ export const DEFAULT_SETTINGS: SalonSettings = {
   name: 'DSR Maison de Beauté',
   tagline_es: 'Su belleza, nuestro arte',
   tagline_en: 'Your beauty, our craft',
-  address: 'Calle de Serrano 84',
-  city: 'Madrid',
-  phone: '+34 91 555 0184',
+  address: 'Lincoln Road 1234',
+  city: 'Miami',
+  phone: '+1 305 555 0184',
   email: 'hola@dsr-maison.com',
   instagram: '@dsr.maison',
-  whatsapp: '+34 600 123 456',
+  whatsapp: '+1 305 555 0123',
   hoursOpen: '10:00',
   hoursClose: '20:00',
-  currency: 'EUR',
-  timezone: 'Europe/Madrid',
+  currency: 'USD',
+  timezone: 'America/New_York',
 };
 
 export const SEED_TIER_RULES: TierRule[] = [
