@@ -14,11 +14,8 @@ import {
   Tiny,
 } from '../components/atoms';
 import { GiftCardVisual } from '../components/GiftCardVisual';
-import {
-  GIFTCARD_AMOUNTS,
-  GIFTCARD_DESIGNS,
-} from '../data/giftcards';
-import { findGiftCardDesign } from '../data/helpers';
+import { GIFTCARD_AMOUNTS } from '../data/giftcards';
+import { useCatalog } from '../data/CatalogProvider';
 import { USER } from '../data/user';
 import { useRouter } from '../router/Router';
 
@@ -106,6 +103,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
+  const { getGiftCardDesigns, getGiftCardDesign } = useCatalog();
 
   const [step, setStep] = useState(0);
   const [designId, setDesignId] = useState(initial.design || 'noir');
@@ -123,7 +121,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
   const [contact, setContact] = useState('');
   const [done, setDone] = useState(false);
 
-  const design = findGiftCardDesign(designId);
+  const design = getGiftCardDesign(designId);
   if (!design) return null;
   const finalAmount = custom ? parseInt(custom, 10) || amount : amount;
 
@@ -215,7 +213,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
                   padding: '0 22px',
                 }}
               >
-                {GIFTCARD_DESIGNS.map((d) => (
+                {getGiftCardDesigns().map((d) => (
                   <button
                     key={d.id}
                     onClick={() => setDesignId(d.id)}

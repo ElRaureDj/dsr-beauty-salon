@@ -15,7 +15,15 @@ import {
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ARTISANS, PRODUCTS, SERVICES } from './catalog';
-import { fetchArtisans, fetchProducts, fetchServices } from '../lib/db';
+import { GIFTCARD_DESIGNS } from './giftcards';
+import { NAIL_LOOKS } from './nails';
+import {
+  fetchArtisans,
+  fetchGiftCardDesigns,
+  fetchNailLooks,
+  fetchProducts,
+  fetchServices,
+} from '../lib/db';
 import {
   SERVICE_VARIANTS,
   type VariantId,
@@ -33,6 +41,8 @@ import type {
   Artisan,
   ArtisanSchedule,
   Combo,
+  GiftCardDesign,
+  NailLook,
   Product,
   ProductStock,
   Promo,
@@ -108,6 +118,12 @@ interface CatalogValue {
   createArtisan: (data: Omit<Artisan, 'id'>) => string;
   deleteArtisan: (id: string) => void;
   artisanOverrideIds: string[];
+  // Nail looks (read-only, customer-only, sin CRUD admin)
+  getNailLooks: () => NailLook[];
+  getNailLook: (id: string) => NailLook | undefined;
+  // Gift card designs (read-only, sin CRUD admin desde el cliente)
+  getGiftCardDesigns: () => GiftCardDesign[];
+  getGiftCardDesign: (id: string) => GiftCardDesign | undefined;
   // Combos — viven enteros en localStorage, no como overlay (porque
   // es CRUD completo: crear/editar/borrar). El "reset" restaura SEED_COMBOS.
   getCombos: () => Combo[];
@@ -168,6 +184,10 @@ const CatalogCtx = createContext<CatalogValue>({
   createArtisan: () => '',
   deleteArtisan: noop,
   artisanOverrideIds: [],
+  getNailLooks: () => NAIL_LOOKS,
+  getNailLook: (id) => NAIL_LOOKS.find((n) => n.id === id),
+  getGiftCardDesigns: () => GIFTCARD_DESIGNS,
+  getGiftCardDesign: (id) => GIFTCARD_DESIGNS.find((g) => g.id === id),
   getCombos: () => SEED_COMBOS,
   getCombo: (id) => SEED_COMBOS.find((c) => c.id === id),
   createCombo: () => '',
@@ -297,6 +317,18 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     queryKey: ['artisans'],
     queryFn: fetchArtisans,
     initialData: ARTISANS,
+    initialDataUpdatedAt: 0,
+  });
+  const { data: dbNailLooks = NAIL_LOOKS } = useQuery({
+    queryKey: ['nail_looks'],
+    queryFn: fetchNailLooks,
+    initialData: NAIL_LOOKS,
+    initialDataUpdatedAt: 0,
+  });
+  const { data: dbGiftCardDesigns = GIFTCARD_DESIGNS } = useQuery({
+    queryKey: ['gift_card_designs'],
+    queryFn: fetchGiftCardDesigns,
+    initialData: GIFTCARD_DESIGNS,
     initialDataUpdatedAt: 0,
   });
 
@@ -585,6 +617,23 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   );
 
   // Combos
+  // Nail looks (read-only desde DB; sin overrides locales).
+  const getNailLooks = useCallback((): NailLook[] => dbNailLooks, [dbNailLooks]);
+  const getNailLook = useCallback(
+    (id: string) => dbNailLooks.find((n) => n.id === id),
+    [dbNailLooks],
+  );
+
+  // Gift card designs (read-only desde DB; sin overrides locales).
+  const getGiftCardDesigns = useCallback(
+    (): GiftCardDesign[] => dbGiftCardDesigns,
+    [dbGiftCardDesigns],
+  );
+  const getGiftCardDesign = useCallback(
+    (id: string) => dbGiftCardDesigns.find((g) => g.id === id),
+    [dbGiftCardDesigns],
+  );
+
   const getCombos = useCallback((): Combo[] => combos, [combos]);
   const getCombo = useCallback(
     (id: string): Combo | undefined => combos.find((c) => c.id === id),
@@ -722,6 +771,10 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       createArtisan,
       deleteArtisan,
       artisanOverrideIds,
+      getNailLooks,
+      getNailLook,
+      getGiftCardDesigns,
+      getGiftCardDesign,
       getCombos,
       getCombo,
       createCombo,
@@ -769,6 +822,10 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       createArtisan,
       deleteArtisan,
       artisanOverrideIds,
+      getNailLooks,
+      getNailLook,
+      getGiftCardDesigns,
+      getGiftCardDesign,
       getCombos,
       getCombo,
       createCombo,
