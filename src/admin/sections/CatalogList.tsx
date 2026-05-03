@@ -8,7 +8,6 @@ import {
   Body,
   Btn,
   Eyebrow,
-  GhostBtn,
   H1,
   H3,
   Ico,
@@ -56,10 +55,8 @@ export function ProductsSection() {
   const {
     getAllProducts,
     updateProduct,
-    resetProduct,
     createProduct,
     deleteProduct,
-    productOverrideIds,
   } = useCatalog();
   const products = getAllProducts();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -81,20 +78,6 @@ export function ProductsSection() {
           </Body>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <Tiny
-            style={{
-              padding: '8px 12px',
-              background: T.surface,
-              boxShadow: `inset 0 0 0 1px ${T.line}`,
-              fontFamily: T.mono,
-              fontSize: 11,
-              letterSpacing: 0.4,
-              textTransform: 'none',
-            }}
-          >
-            {productOverrideIds.length}{' '}
-            {lang === 'es' ? 'editados' : 'edited'}
-          </Tiny>
           <Btn onClick={() => setCreating(true)} fullWidth={false}>
             <Ico size={12} color={T.bg} stroke={2}>
               {Icons.plus}
@@ -133,60 +116,46 @@ export function ProductsSection() {
           </Tiny>
           <span />
         </div>
-        {products.map((p) => {
-          const overridden = productOverrideIds.includes(p.id);
-          return (
-            <button
-              key={p.id}
-              onClick={() => setEditingId(p.id)}
-              className="dsr-press"
-              style={{
-                width: '100%',
-                display: 'grid',
-                gridTemplateColumns: '60px 1fr 140px 100px 100px 32px',
-                gap: 14,
-                padding: '14px 18px',
-                borderBottom: `1px solid ${T.line}`,
-                alignItems: 'center',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <Img src={p.photo} style={{ width: 44, height: 56 }} />
-              <div>
-                <Body style={{ fontSize: 13, fontWeight: 500 }}>
-                  {lang === 'es' ? p.name_es : p.name_en}
-                </Body>
-                <Tiny muted style={{ fontSize: 11, letterSpacing: 0.3, textTransform: 'none', marginTop: 2 }}>
-                  {lang === 'es' ? p.cat_es : p.cat_en} · {p.line}
-                </Tiny>
-              </div>
-              <Tiny style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
-                {p.id}
+        {products.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setEditingId(p.id)}
+            className="dsr-press"
+            style={{
+              width: '100%',
+              display: 'grid',
+              gridTemplateColumns: '60px 1fr 140px 100px 100px 32px',
+              gap: 14,
+              padding: '14px 18px',
+              borderBottom: `1px solid ${T.line}`,
+              alignItems: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <Img src={p.photo} style={{ width: 44, height: 56 }} />
+            <div>
+              <Body style={{ fontSize: 13, fontWeight: 500 }}>
+                {lang === 'es' ? p.name_es : p.name_en}
+              </Body>
+              <Tiny muted style={{ fontSize: 11, letterSpacing: 0.3, textTransform: 'none', marginTop: 2 }}>
+                {lang === 'es' ? p.cat_es : p.cat_en} · {p.line}
               </Tiny>
-              <Tiny style={{ fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
-                {p.size}
-              </Tiny>
-              <H3 style={{ fontSize: 16, color: T.gold, fontStyle: 'italic', textAlign: 'right' }}>
-                €{p.price}
-              </H3>
-              <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                {overridden && (
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 999,
-                      background: T.gold,
-                    }}
-                  />
-                )}
-              </span>
-            </button>
-          );
-        })}
+            </div>
+            <Tiny style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
+              {p.id}
+            </Tiny>
+            <Tiny style={{ fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
+              {p.size}
+            </Tiny>
+            <H3 style={{ fontSize: 16, color: T.gold, fontStyle: 'italic', textAlign: 'right' }}>
+              €{p.price}
+            </H3>
+            <span />
+          </button>
+        ))}
       </div>
 
       {(editing || creating) && (
@@ -210,14 +179,6 @@ export function ProductsSection() {
             setEditingId(null);
             setCreating(false);
           }}
-          onReset={
-            editing
-              ? () => {
-                  resetProduct(editing.id);
-                  setEditingId(null);
-                }
-              : undefined
-          }
           onDelete={
             editing
               ? () => {
@@ -226,7 +187,6 @@ export function ProductsSection() {
                 }
               : undefined
           }
-          isOverridden={editing ? productOverrideIds.includes(editing.id) : false}
         />
       )}
     </div>
@@ -239,18 +199,14 @@ function ProductEditor({
   open,
   onClose,
   onSave,
-  onReset,
   onDelete,
-  isOverridden,
 }: {
   product: Product;
   isNew: boolean;
   open: boolean;
   onClose: () => void;
   onSave: (fields: Partial<Product>) => void;
-  onReset?: () => void;
   onDelete?: () => void;
-  isOverridden: boolean;
 }) {
   const T = useTheme();
   const { lang } = useI18n();
@@ -314,11 +270,6 @@ function ProductEditor({
               >
                 {lang === 'es' ? 'Eliminar' : 'Delete'}
               </button>
-            )}
-            {!isNew && isOverridden && onReset && (
-              <GhostBtn onClick={onReset}>
-                {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
-              </GhostBtn>
             )}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -425,10 +376,8 @@ export function ServicesSection() {
   const {
     getAllServices,
     updateService,
-    resetService,
     createService,
     deleteService,
-    serviceOverrideIds,
   } = useCatalog();
   const services = getAllServices();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -450,20 +399,6 @@ export function ServicesSection() {
           </Body>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <Tiny
-            style={{
-              padding: '8px 12px',
-              background: T.surface,
-              boxShadow: `inset 0 0 0 1px ${T.line}`,
-              fontFamily: T.mono,
-              fontSize: 11,
-              letterSpacing: 0.4,
-              textTransform: 'none',
-            }}
-          >
-            {serviceOverrideIds.length}{' '}
-            {lang === 'es' ? 'editados' : 'edited'}
-          </Tiny>
           <Btn onClick={() => setCreating(true)} fullWidth={false}>
             <Ico size={12} color={T.bg} stroke={2}>
               {Icons.plus}
@@ -499,67 +434,60 @@ export function ServicesSection() {
           </Tiny>
           <span />
         </div>
-        {services.map((s) => {
-          const overridden = serviceOverrideIds.includes(s.id);
-          return (
-            <button
-              key={s.id}
-              onClick={() => setEditingId(s.id)}
-              className="dsr-press"
-              style={{
-                width: '100%',
-                display: 'grid',
-                gridTemplateColumns: '1fr 140px 100px 100px 100px 32px',
-                gap: 14,
-                padding: '14px 18px',
-                borderBottom: `1px solid ${T.line}`,
-                alignItems: 'center',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <div>
-                <Body style={{ fontSize: 13, fontWeight: 500 }}>
-                  {lang === 'es' ? s.es : s.en}
-                </Body>
-                {s.popular && (
-                  <Tiny
-                    style={{
-                      color: T.gold,
-                      fontFamily: T.serif,
-                      fontStyle: 'italic',
-                      fontSize: 11,
-                      letterSpacing: 0.4,
-                      textTransform: 'none',
-                      marginTop: 2,
-                    }}
-                  >
-                    · en boga
-                  </Tiny>
-                )}
-              </div>
-              <Tiny style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
-                {s.id}
-              </Tiny>
-              <Tiny style={{ fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
-                {s.cat}
-              </Tiny>
-              <Tiny style={{ fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
-                {s.duration} min
-              </Tiny>
-              <H3 style={{ fontSize: 16, color: T.gold, fontStyle: 'italic', textAlign: 'right' }}>
-                €{s.price}
-              </H3>
-              <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                {overridden && (
-                  <span style={{ width: 6, height: 6, borderRadius: 999, background: T.gold }} />
-                )}
-              </span>
-            </button>
-          );
-        })}
+        {services.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setEditingId(s.id)}
+            className="dsr-press"
+            style={{
+              width: '100%',
+              display: 'grid',
+              gridTemplateColumns: '1fr 140px 100px 100px 100px 32px',
+              gap: 14,
+              padding: '14px 18px',
+              borderBottom: `1px solid ${T.line}`,
+              alignItems: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <div>
+              <Body style={{ fontSize: 13, fontWeight: 500 }}>
+                {lang === 'es' ? s.es : s.en}
+              </Body>
+              {s.popular && (
+                <Tiny
+                  style={{
+                    color: T.gold,
+                    fontFamily: T.serif,
+                    fontStyle: 'italic',
+                    fontSize: 11,
+                    letterSpacing: 0.4,
+                    textTransform: 'none',
+                    marginTop: 2,
+                  }}
+                >
+                  · en boga
+                </Tiny>
+              )}
+            </div>
+            <Tiny style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
+              {s.id}
+            </Tiny>
+            <Tiny style={{ fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
+              {s.cat}
+            </Tiny>
+            <Tiny style={{ fontSize: 11, letterSpacing: 0.4, textTransform: 'none', color: T.textMuted }}>
+              {s.duration} min
+            </Tiny>
+            <H3 style={{ fontSize: 16, color: T.gold, fontStyle: 'italic', textAlign: 'right' }}>
+              €{s.price}
+            </H3>
+            <span />
+          </button>
+        ))}
       </div>
 
       {(editing || creating) && (
@@ -583,14 +511,6 @@ export function ServicesSection() {
             setEditingId(null);
             setCreating(false);
           }}
-          onReset={
-            editing
-              ? () => {
-                  resetService(editing.id);
-                  setEditingId(null);
-                }
-              : undefined
-          }
           onDelete={
             editing
               ? () => {
@@ -599,7 +519,6 @@ export function ServicesSection() {
                 }
               : undefined
           }
-          isOverridden={editing ? serviceOverrideIds.includes(editing.id) : false}
         />
       )}
     </div>
@@ -612,18 +531,14 @@ function ServiceEditor({
   open,
   onClose,
   onSave,
-  onReset,
   onDelete,
-  isOverridden,
 }: {
   service: Service;
   isNew: boolean;
   open: boolean;
   onClose: () => void;
   onSave: (fields: Partial<Service>) => void;
-  onReset?: () => void;
   onDelete?: () => void;
-  isOverridden: boolean;
 }) {
   const T = useTheme();
   const { lang } = useI18n();
@@ -681,11 +596,6 @@ function ServiceEditor({
               >
                 {lang === 'es' ? 'Eliminar' : 'Delete'}
               </button>
-            )}
-            {!isNew && isOverridden && onReset && (
-              <GhostBtn onClick={onReset}>
-                {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
-              </GhostBtn>
             )}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>

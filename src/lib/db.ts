@@ -83,14 +83,64 @@ function mapService(row: DbService): Service {
   };
 }
 
+const SERVICE_COLS =
+  'id, cat_id, name_es, name_en, desc_es, desc_en, duration, price, popular';
+
 export async function fetchServices(): Promise<Service[]> {
-  const { data, error } = await supabase
-    .from('services')
-    .select(
-      'id, cat_id, name_es, name_en, desc_es, desc_en, duration, price, popular',
-    );
+  const { data, error } = await supabase.from('services').select(SERVICE_COLS);
   if (error) throw error;
   return (data as DbService[]).map(mapService);
+}
+
+function serviceToDb(s: Omit<Service, 'id'>): Omit<DbService, 'id'> {
+  return {
+    cat_id: s.cat,
+    name_es: s.es,
+    name_en: s.en,
+    desc_es: s.desc_es,
+    desc_en: s.desc_en,
+    duration: s.duration,
+    price: s.price,
+    popular: s.popular ?? false,
+  };
+}
+
+export async function createServiceDb(svc: Service): Promise<Service> {
+  const { data, error } = await supabase
+    .from('services')
+    .insert({ id: svc.id, ...serviceToDb(svc) })
+    .select(SERVICE_COLS)
+    .single();
+  if (error) throw error;
+  return mapService(data as DbService);
+}
+
+export async function updateServiceDb(
+  id: string,
+  fields: Partial<Omit<Service, 'id'>>,
+): Promise<Service> {
+  const update: Record<string, unknown> = {};
+  if (fields.cat !== undefined) update.cat_id = fields.cat;
+  if (fields.es !== undefined) update.name_es = fields.es;
+  if (fields.en !== undefined) update.name_en = fields.en;
+  if (fields.desc_es !== undefined) update.desc_es = fields.desc_es;
+  if (fields.desc_en !== undefined) update.desc_en = fields.desc_en;
+  if (fields.duration !== undefined) update.duration = fields.duration;
+  if (fields.price !== undefined) update.price = fields.price;
+  if (fields.popular !== undefined) update.popular = fields.popular;
+  const { data, error } = await supabase
+    .from('services')
+    .update(update)
+    .eq('id', id)
+    .select(SERVICE_COLS)
+    .single();
+  if (error) throw error;
+  return mapService(data as DbService);
+}
+
+export async function deleteServiceDb(id: string): Promise<void> {
+  const { error } = await supabase.from('services').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ---------- Artisans ----------
@@ -135,14 +185,70 @@ function mapArtisan(row: DbArtisan): Artisan {
   };
 }
 
+const ARTISAN_COLS =
+  'id, name, role_es, role_en, cats, specialty_es, specialty_en, years, bio_es, bio_en, rating, reviews, photo, avatar, signature_es, signature_en';
+
 export async function fetchArtisans(): Promise<Artisan[]> {
-  const { data, error } = await supabase
-    .from('artisans')
-    .select(
-      'id, name, role_es, role_en, cats, specialty_es, specialty_en, years, bio_es, bio_en, rating, reviews, photo, avatar, signature_es, signature_en',
-    );
+  const { data, error } = await supabase.from('artisans').select(ARTISAN_COLS);
   if (error) throw error;
   return (data as DbArtisan[]).map(mapArtisan);
+}
+
+function artisanToDb(a: Omit<Artisan, 'id'>): Omit<DbArtisan, 'id'> {
+  return {
+    name: a.name,
+    role_es: a.role_es,
+    role_en: a.role_en,
+    cats: a.cats,
+    specialty_es: a.specialty_es,
+    specialty_en: a.specialty_en,
+    years: a.years,
+    bio_es: a.bio_es,
+    bio_en: a.bio_en,
+    rating: a.rating,
+    reviews: a.reviews,
+    photo: a.photo,
+    avatar: a.avatar,
+    signature_es: a.signature_es ?? null,
+    signature_en: a.signature_en ?? null,
+  };
+}
+
+export async function createArtisanDb(art: Artisan): Promise<Artisan> {
+  const { data, error } = await supabase
+    .from('artisans')
+    .insert({ id: art.id, ...artisanToDb(art) })
+    .select(ARTISAN_COLS)
+    .single();
+  if (error) throw error;
+  return mapArtisan(data as DbArtisan);
+}
+
+export async function updateArtisanDb(
+  id: string,
+  fields: Partial<Omit<Artisan, 'id'>>,
+): Promise<Artisan> {
+  const update: Record<string, unknown> = {};
+  for (const k of Object.keys(fields) as (keyof Omit<Artisan, 'id'>)[]) {
+    const v = fields[k];
+    if (v === undefined) continue;
+    if (k === 'signature_es') update.signature_es = v ?? null;
+    else if (k === 'signature_en') update.signature_en = v ?? null;
+    else update[k] = v;
+  }
+  const { data, error } = await supabase
+    .from('artisans')
+    .update(update)
+    .eq('id', id)
+    .select(ARTISAN_COLS)
+    .single();
+  if (error) throw error;
+  return mapArtisan(data as DbArtisan);
+}
+
+export async function deleteArtisanDb(id: string): Promise<void> {
+  const { error } = await supabase.from('artisans').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ---------- Products ----------
@@ -193,14 +299,75 @@ function mapProduct(row: DbProduct): Product {
   };
 }
 
+const PRODUCT_COLS =
+  'id, name_es, name_en, line, cat_es, cat_en, size, price, desc_es, desc_en, notes_es, notes_en, photo, photos, video, badge_es, badge_en, rating, reviews';
+
 export async function fetchProducts(): Promise<Product[]> {
-  const { data, error } = await supabase
-    .from('products')
-    .select(
-      'id, name_es, name_en, line, cat_es, cat_en, size, price, desc_es, desc_en, notes_es, notes_en, photo, photos, video, badge_es, badge_en, rating, reviews',
-    );
+  const { data, error } = await supabase.from('products').select(PRODUCT_COLS);
   if (error) throw error;
   return (data as DbProduct[]).map(mapProduct);
+}
+
+function productToDb(p: Omit<Product, 'id'>): Omit<DbProduct, 'id'> {
+  return {
+    name_es: p.name_es,
+    name_en: p.name_en,
+    line: p.line,
+    cat_es: p.cat_es,
+    cat_en: p.cat_en,
+    size: p.size,
+    price: p.price,
+    desc_es: p.desc_es,
+    desc_en: p.desc_en,
+    notes_es: p.notes_es,
+    notes_en: p.notes_en,
+    photo: p.photo,
+    photos: p.photos,
+    video: p.video ?? null,
+    badge_es: p.badge_es ?? null,
+    badge_en: p.badge_en ?? null,
+    rating: p.rating,
+    reviews: p.reviews,
+  };
+}
+
+export async function createProductDb(product: Product): Promise<Product> {
+  const { data, error } = await supabase
+    .from('products')
+    .insert({ id: product.id, ...productToDb(product) })
+    .select(PRODUCT_COLS)
+    .single();
+  if (error) throw error;
+  return mapProduct(data as DbProduct);
+}
+
+export async function updateProductDb(
+  id: string,
+  fields: Partial<Omit<Product, 'id'>>,
+): Promise<Product> {
+  const update: Record<string, unknown> = {};
+  for (const k of Object.keys(fields) as (keyof Omit<Product, 'id'>)[]) {
+    const v = fields[k];
+    if (v === undefined) continue;
+    // Map camelCase keys to snake_case DB cols where they differ.
+    if (k === 'video') update.video = v ?? null;
+    else if (k === 'badge_es') update.badge_es = v ?? null;
+    else if (k === 'badge_en') update.badge_en = v ?? null;
+    else update[k] = v;
+  }
+  const { data, error } = await supabase
+    .from('products')
+    .update(update)
+    .eq('id', id)
+    .select(PRODUCT_COLS)
+    .single();
+  if (error) throw error;
+  return mapProduct(data as DbProduct);
+}
+
+export async function deleteProductDb(id: string): Promise<void> {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ---------- Combos ----------

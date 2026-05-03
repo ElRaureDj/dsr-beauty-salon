@@ -7,7 +7,6 @@ import {
   Body,
   Btn,
   Eyebrow,
-  GhostBtn,
   H1,
   Ico,
   Icons,
@@ -40,10 +39,8 @@ export function ArtisansSection() {
   const {
     getAllArtisans,
     updateArtisan,
-    resetArtisan,
     createArtisan,
     deleteArtisan,
-    artisanOverrideIds,
   } = useCatalog();
   const artisans = getAllArtisans();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -65,20 +62,6 @@ export function ArtisansSection() {
           </Body>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <Tiny
-            style={{
-              padding: '8px 12px',
-              background: T.surface,
-              boxShadow: `inset 0 0 0 1px ${T.line}`,
-              fontFamily: T.mono,
-              fontSize: 11,
-              letterSpacing: 0.4,
-              textTransform: 'none',
-            }}
-          >
-            {artisanOverrideIds.length}{' '}
-            {lang === 'es' ? 'editados' : 'edited'}
-          </Tiny>
           <Btn onClick={() => setCreating(true)} fullWidth={false}>
             <Ico size={12} color={T.bg} stroke={2}>
               {Icons.plus}
@@ -95,82 +78,66 @@ export function ArtisansSection() {
           gap: 14,
         }}
       >
-        {artisans.map((a) => {
-          const overridden = artisanOverrideIds.includes(a.id);
-          return (
-            <button
-              key={a.id}
-              onClick={() => setEditingId(a.id)}
-              className="dsr-press"
-              style={{
-                background: T.surface,
-                boxShadow: `inset 0 0 0 1px ${T.line}`,
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-                display: 'flex',
-                gap: 14,
-                alignItems: 'flex-start',
-                textAlign: 'left',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <Img src={a.photo} style={{ width: 88, height: 110, flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0, padding: '14px 14px 14px 0' }}>
-                <Body style={{ fontSize: 14, fontWeight: 500 }}>{a.name}</Body>
-                <Tiny
-                  style={{
-                    color: T.gold,
-                    marginTop: 4,
-                    fontSize: 11,
-                    letterSpacing: 0.4,
-                    textTransform: 'none',
-                    fontFamily: T.serif,
-                    fontStyle: 'italic',
-                  }}
-                >
-                  {lang === 'es' ? a.role_es : a.role_en}
-                </Tiny>
-                <Tiny
-                  muted
-                  style={{
-                    marginTop: 6,
-                    fontSize: 10,
-                    letterSpacing: 0.3,
-                    textTransform: 'none',
-                  }}
-                >
-                  {a.years} {lang === 'es' ? 'años' : 'yrs'} · {a.rating} ★
-                </Tiny>
-                <Tiny
-                  muted
-                  style={{
-                    marginTop: 6,
-                    fontSize: 9,
-                    letterSpacing: 1,
-                    fontFamily: T.mono,
-                  }}
-                >
-                  {a.id}
-                </Tiny>
-              </div>
-              {overridden && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: 10,
-                    right: 10,
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: T.gold,
-                  }}
-                />
-              )}
-            </button>
-          );
-        })}
+        {artisans.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => setEditingId(a.id)}
+            className="dsr-press"
+            style={{
+              background: T.surface,
+              boxShadow: `inset 0 0 0 1px ${T.line}`,
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              display: 'flex',
+              gap: 14,
+              alignItems: 'flex-start',
+              textAlign: 'left',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <Img src={a.photo} style={{ width: 88, height: 110, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0, padding: '14px 14px 14px 0' }}>
+              <Body style={{ fontSize: 14, fontWeight: 500 }}>{a.name}</Body>
+              <Tiny
+                style={{
+                  color: T.gold,
+                  marginTop: 4,
+                  fontSize: 11,
+                  letterSpacing: 0.4,
+                  textTransform: 'none',
+                  fontFamily: T.serif,
+                  fontStyle: 'italic',
+                }}
+              >
+                {lang === 'es' ? a.role_es : a.role_en}
+              </Tiny>
+              <Tiny
+                muted
+                style={{
+                  marginTop: 6,
+                  fontSize: 10,
+                  letterSpacing: 0.3,
+                  textTransform: 'none',
+                }}
+              >
+                {a.years} {lang === 'es' ? 'años' : 'yrs'} · {a.rating} ★
+              </Tiny>
+              <Tiny
+                muted
+                style={{
+                  marginTop: 6,
+                  fontSize: 9,
+                  letterSpacing: 1,
+                  fontFamily: T.mono,
+                }}
+              >
+                {a.id}
+              </Tiny>
+            </div>
+          </button>
+        ))}
       </div>
 
       {(editing || creating) && (
@@ -195,14 +162,6 @@ export function ArtisansSection() {
             setEditingId(null);
             setCreating(false);
           }}
-          onReset={
-            editing
-              ? () => {
-                  resetArtisan(editing.id);
-                  setEditingId(null);
-                }
-              : undefined
-          }
           onDelete={
             editing
               ? () => {
@@ -211,7 +170,6 @@ export function ArtisansSection() {
                 }
               : undefined
           }
-          isOverridden={editing ? artisanOverrideIds.includes(editing.id) : false}
         />
       )}
     </div>
@@ -224,18 +182,14 @@ function ArtisanEditor({
   open,
   onClose,
   onSave,
-  onReset,
   onDelete,
-  isOverridden,
 }: {
   artisan: Artisan;
   isNew: boolean;
   open: boolean;
   onClose: () => void;
   onSave: (fields: Partial<Artisan>) => void;
-  onReset?: () => void;
   onDelete?: () => void;
-  isOverridden: boolean;
 }) {
   const T = useTheme();
   const { lang } = useI18n();
@@ -298,11 +252,6 @@ function ArtisanEditor({
               >
                 {lang === 'es' ? 'Eliminar' : 'Delete'}
               </button>
-            )}
-            {!isNew && isOverridden && onReset && (
-              <GhostBtn onClick={onReset}>
-                {lang === 'es' ? 'Restaurar base' : 'Reset to base'}
-              </GhostBtn>
             )}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>

@@ -10,7 +10,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,10 +18,16 @@ import { GIFTCARD_DESIGNS } from './giftcards';
 import { NAIL_LOOKS } from './nails';
 import {
   clearAllServiceVariants,
+  createArtisanDb,
   createCombo as dbCreateCombo,
+  createProductDb,
   createPromo as dbCreatePromo,
+  createServiceDb,
+  deleteArtisanDb,
   deleteCombo as dbDeleteCombo,
+  deleteProductDb,
   deletePromo as dbDeletePromo,
+  deleteServiceDb,
   deleteServiceVariant,
   fetchArtisanSchedules,
   fetchArtisans,
@@ -39,9 +44,12 @@ import {
   fetchTierRules,
   resetCombosToSeed,
   respondToReview as dbRespondToReview,
+  updateArtisanDb,
   updateCombo as dbUpdateCombo,
+  updateProductDb,
   updatePromo as dbUpdatePromo,
   updateSalonSettings,
+  updateServiceDb,
   updateTierRule as dbUpdateTierRule,
   upsertArtisanSchedule,
   upsertProductStock,
@@ -99,10 +107,6 @@ export interface MergedVariantConfig {
   customCompatibleProductIds?: string[];
 }
 
-type ProductOverrides = Record<string, Partial<Product>>;
-type ServiceOverrides = Record<string, Partial<Service>>;
-type ArtisanOverrides = Record<string, Partial<Artisan>>;
-
 interface CatalogValue {
   // Variants
   getServiceVariants: (serviceId: string) => MergedVariantConfig | null;
@@ -113,26 +117,20 @@ interface CatalogValue {
   getProduct: (id: string) => Product | undefined;
   getAllProducts: () => Product[];
   updateProduct: (id: string, fields: Partial<Product>) => void;
-  resetProduct: (id: string) => void;
   createProduct: (data: Omit<Product, 'id'>) => string;
   deleteProduct: (id: string) => void;
-  productOverrideIds: string[];
   // Services
   getService: (id: string) => Service | undefined;
   getAllServices: () => Service[];
   updateService: (id: string, fields: Partial<Service>) => void;
-  resetService: (id: string) => void;
   createService: (data: Omit<Service, 'id'>) => string;
   deleteService: (id: string) => void;
-  serviceOverrideIds: string[];
   // Artisans
   getArtisan: (id: string) => Artisan | undefined;
   getAllArtisans: () => Artisan[];
   updateArtisan: (id: string, fields: Partial<Artisan>) => void;
-  resetArtisan: (id: string) => void;
   createArtisan: (data: Omit<Artisan, 'id'>) => string;
   deleteArtisan: (id: string) => void;
-  artisanOverrideIds: string[];
   // Nail looks (read-only, customer-only, sin CRUD admin)
   getNailLooks: () => NailLook[];
   getNailLook: (id: string) => NailLook | undefined;
@@ -181,24 +179,18 @@ const CatalogCtx = createContext<CatalogValue>({
   getProduct: (id) => PRODUCTS.find((p) => p.id === id),
   getAllProducts: () => PRODUCTS,
   updateProduct: noop,
-  resetProduct: noop,
   createProduct: () => '',
   deleteProduct: noop,
-  productOverrideIds: [],
   getService: (id) => SERVICES.find((s) => s.id === id),
   getAllServices: () => SERVICES,
   updateService: noop,
-  resetService: noop,
   createService: () => '',
   deleteService: noop,
-  serviceOverrideIds: [],
   getArtisan: (id) => ARTISANS.find((a) => a.id === id),
   getAllArtisans: () => ARTISANS,
   updateArtisan: noop,
-  resetArtisan: noop,
   createArtisan: () => '',
   deleteArtisan: noop,
-  artisanOverrideIds: [],
   getNailLooks: () => NAIL_LOOKS,
   getNailLook: (id) => NAIL_LOOKS.find((n) => n.id === id),
   getGiftCardDesigns: () => GIFTCARD_DESIGNS,
@@ -231,18 +223,6 @@ const CatalogCtx = createContext<CatalogValue>({
   updateSettings: noop,
 });
 
-function loadJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') return parsed as T;
-  } catch {
-    /* ignore */
-  }
-  return fallback;
-}
-
 function generateComboId(): string {
   return `cmb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -256,35 +236,6 @@ function generateId(prefix: string): string {
 }
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
-  const [productOverrides, setProductOverrides] = useState<ProductOverrides>(() =>
-    loadJSON(PRODUCTS_KEY, {}),
-  );
-  const [serviceOverrides, setServiceOverrides] = useState<ServiceOverrides>(() =>
-    loadJSON(SERVICES_KEY, {}),
-  );
-  const [artisanOverrides, setArtisanOverrides] = useState<ArtisanOverrides>(() =>
-    loadJSON(ARTISANS_KEY, {}),
-  );
-  // Items nuevos creados desde admin (no en seeds estáticos).
-  const [createdProducts, setCreatedProducts] = useState<Product[]>(() =>
-    loadJSON<Product[]>(CREATED_PRODUCTS_KEY, []),
-  );
-  const [createdServices, setCreatedServices] = useState<Service[]>(() =>
-    loadJSON<Service[]>(CREATED_SERVICES_KEY, []),
-  );
-  const [createdArtisans, setCreatedArtisans] = useState<Artisan[]>(() =>
-    loadJSON<Artisan[]>(CREATED_ARTISANS_KEY, []),
-  );
-  // Soft-delete: ids del seed marcados como borrados.
-  const [deletedProductIds, setDeletedProductIds] = useState<string[]>(() =>
-    loadJSON<string[]>(DELETED_PRODUCTS_KEY, []),
-  );
-  const [deletedServiceIds, setDeletedServiceIds] = useState<string[]>(() =>
-    loadJSON<string[]>(DELETED_SERVICES_KEY, []),
-  );
-  const [deletedArtisanIds, setDeletedArtisanIds] = useState<string[]>(() =>
-    loadJSON<string[]>(DELETED_ARTISANS_KEY, []),
-  );
   // ---------- Catálogo desde Supabase ----------
   // initialData = seed estático para tener UI inmediata sin flash de carga.
   // initialDataUpdatedAt: 0 marca el seed como "muy viejo" para que la query
@@ -412,42 +363,17 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  // Persistencia local de overrides (products/services/artisans) y de
-  // soft-deletes — esos siguen en localStorage hasta que la fase 7c
-  // (writes admin de products/services/artisans) los mueva a DB.
+  // Limpiar legacy localStorage de la fase overlay (overrides + creados + deleted).
+  // Una sola vez al montar; el catálogo es 100% DB ahora.
   useEffect(() => {
     try {
-      window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(productOverrides));
+      [
+        PRODUCTS_KEY, SERVICES_KEY, ARTISANS_KEY,
+        CREATED_PRODUCTS_KEY, CREATED_SERVICES_KEY, CREATED_ARTISANS_KEY,
+        DELETED_PRODUCTS_KEY, DELETED_SERVICES_KEY, DELETED_ARTISANS_KEY,
+      ].forEach((k) => window.localStorage.removeItem(k));
     } catch { /* ignore */ }
-  }, [productOverrides]);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(SERVICES_KEY, JSON.stringify(serviceOverrides));
-    } catch { /* ignore */ }
-  }, [serviceOverrides]);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(ARTISANS_KEY, JSON.stringify(artisanOverrides));
-    } catch { /* ignore */ }
-  }, [artisanOverrides]);
-  useEffect(() => {
-    try { window.localStorage.setItem(CREATED_PRODUCTS_KEY, JSON.stringify(createdProducts)); } catch { /* ignore */ }
-  }, [createdProducts]);
-  useEffect(() => {
-    try { window.localStorage.setItem(CREATED_SERVICES_KEY, JSON.stringify(createdServices)); } catch { /* ignore */ }
-  }, [createdServices]);
-  useEffect(() => {
-    try { window.localStorage.setItem(CREATED_ARTISANS_KEY, JSON.stringify(createdArtisans)); } catch { /* ignore */ }
-  }, [createdArtisans]);
-  useEffect(() => {
-    try { window.localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify(deletedProductIds)); } catch { /* ignore */ }
-  }, [deletedProductIds]);
-  useEffect(() => {
-    try { window.localStorage.setItem(DELETED_SERVICES_KEY, JSON.stringify(deletedServiceIds)); } catch { /* ignore */ }
-  }, [deletedServiceIds]);
-  useEffect(() => {
-    try { window.localStorage.setItem(DELETED_ARTISANS_KEY, JSON.stringify(deletedArtisanIds)); } catch { /* ignore */ }
-  }, [deletedArtisanIds]);
+  }, []);
 
   // Variants — overlay desde DB. Si el service_id está en dbVariantOverrides
   // ese gana. Si no, fallback a SERVICE_VARIANTS estático del repo.
@@ -503,210 +429,183 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [dbVariantOverrides],
   );
 
-  // Products — merged (base de DB + creados localmente) - eliminados,
-  // con override por id. La base ahora viene de Supabase via useQuery.
+  // Products — fuente de verdad: DB. Mutations admin protegidas por
+  // RLS (is_admin). Optimistic local + dispatch async + invalidate.
+  const invalidateProducts = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+    [queryClient],
+  );
   const getProduct = useCallback(
-    (id: string): Product | undefined => {
-      if (deletedProductIds.includes(id)) return undefined;
-      const created = createdProducts.find((p) => p.id === id);
-      const base = created ?? dbProducts.find((p) => p.id === id);
-      if (!base) return undefined;
-      const ov = productOverrides[id];
-      return ov ? { ...base, ...ov } : base;
-    },
-    [productOverrides, createdProducts, deletedProductIds, dbProducts],
-  );
-  const getAllProducts = useCallback((): Product[] => {
-    const baseFiltered = dbProducts.filter(
-      (p) => !deletedProductIds.includes(p.id),
-    );
-    const merged = [...baseFiltered, ...createdProducts];
-    return merged.map((p) =>
-      productOverrides[p.id] ? { ...p, ...productOverrides[p.id] } : p,
-    );
-  }, [productOverrides, createdProducts, deletedProductIds, dbProducts]);
-  const updateProduct = useCallback(
-    (id: string, fields: Partial<Product>) =>
-      setProductOverrides((prev) => ({
-        ...prev,
-        [id]: { ...(prev[id] ?? {}), ...fields },
-      })),
-    [],
-  );
-  const resetProduct = useCallback(
-    (id: string) =>
-      setProductOverrides((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      }),
-    [],
-  );
-  const createProduct = useCallback((data: Omit<Product, 'id'>): string => {
-    const id = generateId('prod');
-    setCreatedProducts((prev) => [...prev, { ...data, id }]);
-    return id;
-  }, []);
-  const deleteProduct = useCallback(
-    (id: string) => {
-      // Si era un creado, lo quitamos del array. Si era de DB seed, soft-delete.
-      setCreatedProducts((prev) => {
-        if (prev.some((p) => p.id === id)) return prev.filter((p) => p.id !== id);
-        return prev;
-      });
-      if (dbProducts.some((p) => p.id === id)) {
-        setDeletedProductIds((prev) =>
-          prev.includes(id) ? prev : [...prev, id],
-        );
-      }
-      setProductOverrides((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    },
+    (id: string): Product | undefined => dbProducts.find((p) => p.id === id),
     [dbProducts],
   );
-  const productOverrideIds = useMemo(
-    () => Object.keys(productOverrides),
-    [productOverrides],
+  const getAllProducts = useCallback((): Product[] => dbProducts, [dbProducts]);
+  const updateProduct = useCallback(
+    (id: string, fields: Partial<Product>) => {
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev ? prev.map((p) => (p.id === id ? { ...p, ...fields } : p)) : prev,
+      );
+      void updateProductDb(id, fields)
+        .then(() => invalidateProducts())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateProduct failed:', err);
+          void invalidateProducts();
+        });
+    },
+    [queryClient, invalidateProducts],
+  );
+  const createProduct = useCallback(
+    (data: Omit<Product, 'id'>): string => {
+      const id = generateId('prod');
+      const full: Product = { ...data, id };
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev ? [...prev, full] : [full],
+      );
+      void createProductDb(full)
+        .then(() => invalidateProducts())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] createProduct failed:', err);
+          void invalidateProducts();
+        });
+      return id;
+    },
+    [queryClient, invalidateProducts],
+  );
+  const deleteProduct = useCallback(
+    (id: string) => {
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev ? prev.filter((p) => p.id !== id) : prev,
+      );
+      void deleteProductDb(id)
+        .then(() => invalidateProducts())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] deleteProduct failed:', err);
+          void invalidateProducts();
+        });
+    },
+    [queryClient, invalidateProducts],
   );
 
-  // Services — base desde Supabase
+  // Services — fuente de verdad: DB.
+  const invalidateServices = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['services'] }),
+    [queryClient],
+  );
   const getService = useCallback(
-    (id: string): Service | undefined => {
-      if (deletedServiceIds.includes(id)) return undefined;
-      const created = createdServices.find((s) => s.id === id);
-      const base = created ?? dbServices.find((s) => s.id === id);
-      if (!base) return undefined;
-      const ov = serviceOverrides[id];
-      return ov ? { ...base, ...ov } : base;
-    },
-    [serviceOverrides, createdServices, deletedServiceIds, dbServices],
-  );
-  const getAllServices = useCallback((): Service[] => {
-    const baseFiltered = dbServices.filter(
-      (s) => !deletedServiceIds.includes(s.id),
-    );
-    const merged = [...baseFiltered, ...createdServices];
-    return merged.map((s) =>
-      serviceOverrides[s.id] ? { ...s, ...serviceOverrides[s.id] } : s,
-    );
-  }, [serviceOverrides, createdServices, deletedServiceIds, dbServices]);
-  const updateService = useCallback(
-    (id: string, fields: Partial<Service>) =>
-      setServiceOverrides((prev) => ({
-        ...prev,
-        [id]: { ...(prev[id] ?? {}), ...fields },
-      })),
-    [],
-  );
-  const resetService = useCallback(
-    (id: string) =>
-      setServiceOverrides((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      }),
-    [],
-  );
-  const createService = useCallback((data: Omit<Service, 'id'>): string => {
-    const id = generateId('svc');
-    setCreatedServices((prev) => [...prev, { ...data, id }]);
-    return id;
-  }, []);
-  const deleteService = useCallback(
-    (id: string) => {
-      setCreatedServices((prev) => {
-        if (prev.some((s) => s.id === id)) return prev.filter((s) => s.id !== id);
-        return prev;
-      });
-      if (dbServices.some((s) => s.id === id)) {
-        setDeletedServiceIds((prev) =>
-          prev.includes(id) ? prev : [...prev, id],
-        );
-      }
-      setServiceOverrides((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    },
+    (id: string): Service | undefined => dbServices.find((s) => s.id === id),
     [dbServices],
   );
-  const serviceOverrideIds = useMemo(
-    () => Object.keys(serviceOverrides),
-    [serviceOverrides],
+  const getAllServices = useCallback((): Service[] => dbServices, [dbServices]);
+  const updateService = useCallback(
+    (id: string, fields: Partial<Service>) => {
+      queryClient.setQueryData<Service[]>(['services'], (prev) =>
+        prev ? prev.map((s) => (s.id === id ? { ...s, ...fields } : s)) : prev,
+      );
+      void updateServiceDb(id, fields)
+        .then(() => invalidateServices())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateService failed:', err);
+          void invalidateServices();
+        });
+    },
+    [queryClient, invalidateServices],
+  );
+  const createService = useCallback(
+    (data: Omit<Service, 'id'>): string => {
+      const id = generateId('svc');
+      const full: Service = { ...data, id };
+      queryClient.setQueryData<Service[]>(['services'], (prev) =>
+        prev ? [...prev, full] : [full],
+      );
+      void createServiceDb(full)
+        .then(() => invalidateServices())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] createService failed:', err);
+          void invalidateServices();
+        });
+      return id;
+    },
+    [queryClient, invalidateServices],
+  );
+  const deleteService = useCallback(
+    (id: string) => {
+      queryClient.setQueryData<Service[]>(['services'], (prev) =>
+        prev ? prev.filter((s) => s.id !== id) : prev,
+      );
+      void deleteServiceDb(id)
+        .then(() => invalidateServices())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] deleteService failed:', err);
+          void invalidateServices();
+        });
+    },
+    [queryClient, invalidateServices],
   );
 
-  // Artisans — base desde Supabase
+  // Artisans — fuente de verdad: DB.
+  const invalidateArtisans = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['artisans'] }),
+    [queryClient],
+  );
   const getArtisan = useCallback(
-    (id: string): Artisan | undefined => {
-      if (deletedArtisanIds.includes(id)) return undefined;
-      const created = createdArtisans.find((a) => a.id === id);
-      const base = created ?? dbArtisans.find((a) => a.id === id);
-      if (!base) return undefined;
-      const ov = artisanOverrides[id];
-      return ov ? { ...base, ...ov } : base;
-    },
-    [artisanOverrides, createdArtisans, deletedArtisanIds, dbArtisans],
-  );
-  const getAllArtisans = useCallback((): Artisan[] => {
-    const baseFiltered = dbArtisans.filter(
-      (a) => !deletedArtisanIds.includes(a.id),
-    );
-    const merged = [...baseFiltered, ...createdArtisans];
-    return merged.map((a) =>
-      artisanOverrides[a.id] ? { ...a, ...artisanOverrides[a.id] } : a,
-    );
-  }, [artisanOverrides, createdArtisans, deletedArtisanIds, dbArtisans]);
-  const updateArtisan = useCallback(
-    (id: string, fields: Partial<Artisan>) =>
-      setArtisanOverrides((prev) => ({
-        ...prev,
-        [id]: { ...(prev[id] ?? {}), ...fields },
-      })),
-    [],
-  );
-  const createArtisan = useCallback((data: Omit<Artisan, 'id'>): string => {
-    const id = generateId('art');
-    setCreatedArtisans((prev) => [...prev, { ...data, id }]);
-    return id;
-  }, []);
-  const deleteArtisan = useCallback(
-    (id: string) => {
-      setCreatedArtisans((prev) => {
-        if (prev.some((a) => a.id === id)) return prev.filter((a) => a.id !== id);
-        return prev;
-      });
-      if (dbArtisans.some((a) => a.id === id)) {
-        setDeletedArtisanIds((prev) =>
-          prev.includes(id) ? prev : [...prev, id],
-        );
-      }
-      setArtisanOverrides((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    },
+    (id: string): Artisan | undefined => dbArtisans.find((a) => a.id === id),
     [dbArtisans],
   );
-  const resetArtisan = useCallback(
-    (id: string) =>
-      setArtisanOverrides((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      }),
-    [],
+  const getAllArtisans = useCallback((): Artisan[] => dbArtisans, [dbArtisans]);
+  const updateArtisan = useCallback(
+    (id: string, fields: Partial<Artisan>) => {
+      queryClient.setQueryData<Artisan[]>(['artisans'], (prev) =>
+        prev ? prev.map((a) => (a.id === id ? { ...a, ...fields } : a)) : prev,
+      );
+      void updateArtisanDb(id, fields)
+        .then(() => invalidateArtisans())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] updateArtisan failed:', err);
+          void invalidateArtisans();
+        });
+    },
+    [queryClient, invalidateArtisans],
   );
-  const artisanOverrideIds = useMemo(
-    () => Object.keys(artisanOverrides),
-    [artisanOverrides],
+  const createArtisan = useCallback(
+    (data: Omit<Artisan, 'id'>): string => {
+      const id = generateId('art');
+      const full: Artisan = { ...data, id };
+      queryClient.setQueryData<Artisan[]>(['artisans'], (prev) =>
+        prev ? [...prev, full] : [full],
+      );
+      void createArtisanDb(full)
+        .then(() => invalidateArtisans())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] createArtisan failed:', err);
+          void invalidateArtisans();
+        });
+      return id;
+    },
+    [queryClient, invalidateArtisans],
   );
-
-  // Combos
+  const deleteArtisan = useCallback(
+    (id: string) => {
+      queryClient.setQueryData<Artisan[]>(['artisans'], (prev) =>
+        prev ? prev.filter((a) => a.id !== id) : prev,
+      );
+      void deleteArtisanDb(id)
+        .then(() => invalidateArtisans())
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[catalog] deleteArtisan failed:', err);
+          void invalidateArtisans();
+        });
+    },
+    [queryClient, invalidateArtisans],
+  );
   // Nail looks (read-only desde DB; sin overrides locales).
   const getNailLooks = useCallback((): NailLook[] => dbNailLooks, [dbNailLooks]);
   const getNailLook = useCallback(
@@ -987,24 +886,18 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       getProduct,
       getAllProducts,
       updateProduct,
-      resetProduct,
       createProduct,
       deleteProduct,
-      productOverrideIds,
       getService,
       getAllServices,
       updateService,
-      resetService,
       createService,
       deleteService,
-      serviceOverrideIds,
       getArtisan,
       getAllArtisans,
       updateArtisan,
-      resetArtisan,
       createArtisan,
       deleteArtisan,
-      artisanOverrideIds,
       getNailLooks,
       getNailLook,
       getGiftCardDesigns,
@@ -1038,24 +931,18 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       getProduct,
       getAllProducts,
       updateProduct,
-      resetProduct,
       createProduct,
       deleteProduct,
-      productOverrideIds,
       getService,
       getAllServices,
       updateService,
-      resetService,
       createService,
       deleteService,
-      serviceOverrideIds,
       getArtisan,
       getAllArtisans,
       updateArtisan,
-      resetArtisan,
       createArtisan,
       deleteArtisan,
-      artisanOverrideIds,
       getNailLooks,
       getNailLook,
       getGiftCardDesigns,
