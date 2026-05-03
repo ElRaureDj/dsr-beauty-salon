@@ -1,8 +1,11 @@
 // DSR — Appointments context.
-// Hoy las citas vienen del seed estático (USER.appointments) pero ahora
-// son state reactivo + persisten en localStorage para soportar acciones
-// del cliente como cancelar. Cuando llegue Fase 5 (cart/bookings al
-// backend), este provider pasa a leer de Supabase.
+// Session-aware:
+// - Sin sesión (modo guest/demo): seed con USER.appointments mock + persist
+//   local en `dsr-appointments-guest-v1`. Esto preserva la experiencia
+//   demo de Camila Vargas con sus 3 citas.
+// - Con sesión: arranca vacío. El user real empieza sin citas y agrega
+//   las suyas. Persistencia local namespaceada por user id hasta que
+//   migremos a tabla `appointments` en Supabase.
 
 import {
   createContext,
@@ -14,9 +17,11 @@ import {
   type ReactNode,
 } from 'react';
 import { USER } from './user';
+import { useUser } from './UserProvider';
 import type { Appointment } from '../types';
 
-const APPTS_KEY = 'dsr-appointments-v1';
+const GUEST_APPTS_KEY = 'dsr-appointments-guest-v1';
+const userApptsKey = (uid: string) => `dsr-appointments-user-${uid}-v1`;
 
 interface AppointmentsValue {
   appointments: Appointment[];
@@ -36,28 +41,49 @@ const AppointmentsCtx = createContext<AppointmentsValue>({
   update: noop,
 });
 
-function load(): Appointment[] {
+function loadFromKey(key: string, fallback: Appointment[]): Appointment[] {
   try {
-    const raw = window.localStorage.getItem(APPTS_KEY);
-    if (!raw) return USER.appointments;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
     const parsed: unknown = JSON.parse(raw);
     if (Array.isArray(parsed)) return parsed as Appointment[];
   } catch {
     /* ignore */
   }
-  return USER.appointments;
+  return fallback;
 }
 
 export function AppointmentsProvider({ children }: { children: ReactNode }) {
-  const [appointments, setAppointments] = useState<Appointment[]>(load);
+  const { session } = useUser();
+  const userId = session?.user?.id ?? null;
 
+  // Estado inicial: si arrancamos con sesión, vacío + restaurar lo que
+  // este user haya guardado antes. Si no, modo guest con USER mock.
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    if (userId) return loadFromKey(userApptsKey(userId), []);
+    return loadFromKey(GUEST_APPTS_KEY, USER.appointments);
+  });
+
+  // Cuando cambia el contexto de auth, resetear desde el storage correcto.
+  // Sign-in: aplicar appointments del user (vacío si es nuevo).
+  // Sign-out: volver al modo demo con USER mock (o lo que el guest tenga).
   useEffect(() => {
+    if (userId) {
+      setAppointments(loadFromKey(userApptsKey(userId), []));
+    } else {
+      setAppointments(loadFromKey(GUEST_APPTS_KEY, USER.appointments));
+    }
+  }, [userId]);
+
+  // Persist al storage que corresponde al contexto actual.
+  useEffect(() => {
+    const key = userId ? userApptsKey(userId) : GUEST_APPTS_KEY;
     try {
-      window.localStorage.setItem(APPTS_KEY, JSON.stringify(appointments));
+      window.localStorage.setItem(key, JSON.stringify(appointments));
     } catch {
       /* ignore */
     }
-  }, [appointments]);
+  }, [appointments, userId]);
 
   const getById = useCallback(
     (id: string) => appointments.find((a) => a.id === id),
