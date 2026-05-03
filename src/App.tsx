@@ -33,6 +33,8 @@ import { GiftMine } from './screens/GiftMine';
 import { AppointmentDetail } from './screens/AppointmentDetail';
 import { PersonalInfo } from './screens/PersonalInfo';
 import { Addresses } from './screens/Addresses';
+import { Legal } from './screens/Legal';
+import type { LegalDocId } from './data/legal';
 
 // Configuración de chrome por route. Una sola tabla para evitar el footgun
 // de tener que mantener dos listas separadas (HIDE_TAB_ROUTES + HIDE_CHROME_
@@ -62,6 +64,7 @@ const ROUTE_CHROME: Partial<Record<RouteName, RouteChrome>> = {
   appointment: { hideTabs: true },
   'personal-info': { hideTabs: true },
   addresses: { hideTabs: true },
+  legal: { hideTabs: true },
   // profile: avatar duplicado si chrome activo. Tabs ocultas también.
   profile: { hideTabs: true, hideChrome: true },
 };
@@ -125,6 +128,8 @@ function ScreenSwitch({ onOnboardingDone }: { onOnboardingDone: () => void }) {
       return <PersonalInfo />;
     case 'addresses':
       return <Addresses />;
+    case 'legal':
+      return <Legal doc={(params.doc as LegalDocId) ?? 'cancellation'} />;
     default:
       // unreachable but keeps the compiler happy
       go('home');

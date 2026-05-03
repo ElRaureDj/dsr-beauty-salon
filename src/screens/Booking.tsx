@@ -911,6 +911,36 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                 </Tiny>
               </div>
             </div>
+
+            {/* Disclaimer de cancelación con link a la política. */}
+            <Tiny
+              muted
+              style={{
+                marginTop: 18,
+                fontSize: 10,
+                letterSpacing: 0.3,
+                textTransform: 'none',
+                textAlign: 'center',
+                lineHeight: 1.5,
+                display: 'block',
+              }}
+            >
+              {lang === 'es'
+                ? 'Al confirmar aceptas nuestra '
+                : 'By confirming you accept our '}
+              <span
+                onClick={() => go('legal', { doc: 'cancellation' })}
+                style={{
+                  color: T.gold,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 2,
+                }}
+              >
+                {lang === 'es' ? 'política de cancelación' : 'cancellation policy'}
+              </span>
+              {lang === 'es' ? '.' : '.'}
+            </Tiny>
           </>
         )}
 

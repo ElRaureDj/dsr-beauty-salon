@@ -329,7 +329,8 @@ export type RouteName =
   | 'gift-mine'
   | 'appointment'
   | 'personal-info'
-  | 'addresses';
+  | 'addresses'
+  | 'legal';
 
 export type TabId = 'home' | 'services' | 'book' | 'rewards' | 'shop';
 
@@ -344,6 +345,8 @@ export interface RouteParams {
   addonProductIds?: string[];
   /** Combo seleccionado: prellena servicios + aplica descuento en Booking. */
   combo?: string;
+  /** Documento legal a abrir: cancellation | terms | privacy. */
+  doc?: string;
 }
 
 export interface Route {

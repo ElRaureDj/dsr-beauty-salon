@@ -87,6 +87,11 @@ export function Profile() {
       en: 'Replay welcome',
       onClick: handleResetOnboarding,
     },
+    {
+      es: 'Información legal',
+      en: 'Legal info',
+      onClick: () => go('legal'),
+    },
     // El item de admin solo aparece si el profile tiene is_admin = true.
     ...(isAdmin
       ? [
