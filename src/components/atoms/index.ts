@@ -7,3 +7,4 @@ export * from './TopChrome';
 export * from './CartDrawer';
 export * from './AvatarPicker';
 export * from './PromoInput';
+export * from './RateStars';

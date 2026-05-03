@@ -1131,10 +1131,11 @@ interface DbReview {
   date: string;
   response: string | null;
   response_date: string | null;
+  user_id: string | null;
 }
 
 const REVIEW_COLS =
-  'id, customer_name, artisan_id, service_id, rating, comment, date, response, response_date';
+  'id, customer_name, artisan_id, service_id, rating, comment, date, response, response_date, user_id';
 
 function mapReview(row: DbReview): Review {
   return {
@@ -1147,6 +1148,7 @@ function mapReview(row: DbReview): Review {
     date: row.date,
     response: row.response ?? undefined,
     responseDate: row.response_date ?? undefined,
+    userId: row.user_id ?? undefined,
   };
 }
 
@@ -1157,6 +1159,37 @@ export async function fetchReviews(): Promise<Review[]> {
     .order('date', { ascending: false });
   if (error) throw error;
   return (data as DbReview[]).map(mapReview);
+}
+
+/**
+ * Crea una reseña del cliente actual. RLS valida auth.uid() = user_id (0010).
+ * El id es generado client-side; date defaults a hoy.
+ */
+export async function createReview(input: {
+  userId: string;
+  customerName: string;
+  artisanId: string;
+  serviceId: string;
+  rating: number;
+  comment: string;
+}): Promise<Review> {
+  const id = `rv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const { data, error } = await supabase
+    .from('reviews')
+    .insert({
+      id,
+      user_id: input.userId,
+      customer_name: input.customerName,
+      artisan_id: input.artisanId,
+      service_id: input.serviceId,
+      rating: input.rating,
+      comment: input.comment,
+      date: new Date().toISOString().slice(0, 10),
+    })
+    .select(REVIEW_COLS)
+    .single();
+  if (error) throw error;
+  return mapReview(data as DbReview);
 }
 
 export async function respondToReview(

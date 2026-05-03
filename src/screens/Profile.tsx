@@ -204,12 +204,15 @@ export function Profile() {
             return (
               <div
                 key={apt.id}
+                onClick={() => go('appointment', { id: apt.id })}
+                className="dsr-press"
                 style={{
                   background: T.surface,
                   padding: 18,
                   marginBottom: 10,
                   boxShadow: `inset 0 0 0 1px ${T.gold}33`,
                   position: 'relative',
+                  cursor: 'pointer',
                 }}
               >
                 <Tiny
@@ -274,6 +277,8 @@ export function Profile() {
               return (
                 <div
                   key={apt.id}
+                  onClick={() => go('appointment', { id: apt.id })}
+                  className="dsr-press"
                   style={{
                     display: 'flex',
                     gap: 12,
@@ -281,6 +286,7 @@ export function Profile() {
                     padding: '14px 0',
                     borderTop: i === 0 ? 'none' : `1px solid ${T.line}`,
                     opacity: 0.7,
+                    cursor: 'pointer',
                   }}
                 >
                   <Img

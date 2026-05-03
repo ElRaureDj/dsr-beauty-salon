@@ -221,6 +221,8 @@ export interface Review {
   date: string; // YYYY-MM-DD
   response?: string;
   responseDate?: string;
+  /** auth.uid del cliente que la dejó. Null para rows legacy/seed. */
+  userId?: string;
 }
 
 // Admin: configuración del salón.

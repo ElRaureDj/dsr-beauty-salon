@@ -22,6 +22,7 @@ import {
   createCombo as dbCreateCombo,
   createProductDb,
   createPromo as dbCreatePromo,
+  createReview as dbCreateReview,
   createServiceDb,
   deleteArtisanDb,
   deleteCombo as dbDeleteCombo,
@@ -175,6 +176,16 @@ interface CatalogValue {
   // Reseñas
   getReviews: () => Review[];
   respondToReview: (id: string, response: string) => void;
+  /** Crea una reseña del cliente actual. Devuelve la review insertada
+   *  o un error string traducible si falló (ej: ya hay una para este par). */
+  createReview: (input: {
+    userId: string;
+    customerName: string;
+    artisanId: string;
+    serviceId: string;
+    rating: number;
+    comment: string;
+  }) => Promise<Review>;
   // Configuración del salón
   getSettings: () => SalonSettings;
   updateSettings: (fields: Partial<SalonSettings>) => void;
@@ -236,6 +247,7 @@ const CatalogCtx = createContext<CatalogValue>({
   updateTierRule: noop,
   getReviews: () => SEED_REVIEWS,
   respondToReview: noop,
+  createReview: () => Promise.reject(new Error('CatalogProvider not mounted')),
   getSettings: () => DEFAULT_SETTINGS,
   updateSettings: noop,
 });
@@ -870,9 +882,27 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     [queryClient, invalidateTierRules],
   );
 
-  // Reviews — leídos desde DB. respondToReview es la única mutation
-  // (admin contesta una reseña).
+  // Reviews — leídos desde DB. respondToReview es admin (contestar);
+  // createReview es customer (dejar reseña post-cita).
   const getReviews = useCallback(() => dbReviews, [dbReviews]);
+  const createReview = useCallback(
+    async (input: {
+      userId: string;
+      customerName: string;
+      artisanId: string;
+      serviceId: string;
+      rating: number;
+      comment: string;
+    }): Promise<Review> => {
+      // Sin optimistic — esperamos al insert real para tener id de DB.
+      // El user clickea "Enviar" y ve un loading; al volver, refetch
+      // muestra la review en la sección.
+      const created = await dbCreateReview(input);
+      await invalidateReviews();
+      return created;
+    },
+    [invalidateReviews],
+  );
   const respondToReview = useCallback(
     (id: string, response: string) => {
       const responseDate = new Date().toISOString().slice(0, 10);
@@ -956,6 +986,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       updateTierRule,
       getReviews,
       respondToReview,
+      createReview,
       getSettings,
       updateSettings,
     }),
@@ -1002,6 +1033,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       updateTierRule,
       getReviews,
       respondToReview,
+      createReview,
       getSettings,
       updateSettings,
     ],
