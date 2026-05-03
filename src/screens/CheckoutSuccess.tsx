@@ -16,9 +16,11 @@ import {
   Screen,
   Tiny,
 } from '../components/atoms';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
-import { incrementPromoUse } from '../lib/db';
+import { useUser } from '../data/UserProvider';
+import { confirmCheckout, incrementPromoUse } from '../lib/db';
 
 function generateOrderId(): string {
   // 6-digit random; suficiente para mock
@@ -31,6 +33,9 @@ export function CheckoutSuccess() {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
+  const { session, refreshProfile } = useUser();
+  const userId = session?.user?.id ?? null;
+  const queryClient = useQueryClient();
 
   // Snapshot del total ANTES de limpiar — sino se ve €0 en pantalla.
   const [snapshot] = useState(() => ({
@@ -51,6 +56,28 @@ export function CheckoutSuccess() {
         console.error('[checkout] incrementPromoUse failed:', err);
       });
     }
+
+    if (userId) {
+      // Authed: pasa pendings → appointments + decrementa stock + suma
+      // points/visits/spent. Atómico via RPC. Después invalidamos caches
+      // para que Profile/Home reflejen las nuevas appointments y points.
+      void confirmCheckout()
+        .then(() => {
+          void queryClient.invalidateQueries({
+            queryKey: ['my-appointments', userId],
+          });
+          void queryClient.invalidateQueries({ queryKey: ['product_stocks'] });
+          void refreshProfile();
+        })
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('[checkout] confirmCheckout failed:', err);
+        });
+    }
+    // El cart.clear() local es siempre necesario:
+    // - Guest: única forma de vaciar (no hay DB).
+    // - Authed: la RPC ya borró pendings/cart_items en DB, pero el state
+    //   local todavía los tiene hasta el próximo refetch.
     cart.clear();
     // intencional: solo en mount
     // eslint-disable-next-line react-hooks/exhaustive-deps

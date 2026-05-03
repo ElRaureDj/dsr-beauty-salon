@@ -3,9 +3,11 @@
 // - Sin sesión (modo guest/demo): seed con USER.appointments mock + persist
 //   local en `dsr-appointments-guest-v1`. Esto preserva la experiencia
 //   demo de Camila Vargas con sus 3 citas.
-// - Con sesión: arranca vacío. El user real empieza sin citas y agrega
-//   las suyas. Persistencia local namespaceada por user id hasta que
-//   migremos a tabla `appointments` en Supabase.
+// - Con sesión: lee de la tabla `appointments` (Supabase, migration 0012).
+//   Las pending_bookings se vuelven appointments cuando el customer pasa
+//   por CheckoutSuccess (RPC confirm_checkout). cancel() llama a la RPC
+//   cancel_appointment que también hace rollback de puntos si la cita
+//   era futura.
 
 import {
   createContext,
@@ -16,19 +18,24 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { USER } from './user';
 import { useUser } from './UserProvider';
+import {
+  cancelAppointmentRpc,
+  fetchMyAppointments,
+} from '../lib/db';
 import type { Appointment } from '../types';
 
 const GUEST_APPTS_KEY = 'dsr-appointments-guest-v1';
-const userApptsKey = (uid: string) => `dsr-appointments-user-${uid}-v1`;
 
 interface AppointmentsValue {
   appointments: Appointment[];
   getById: (id: string) => Appointment | undefined;
   getUpcoming: () => Appointment | undefined;
   cancel: (id: string) => void;
-  /** Update parcial — usado al reagendar (date/time). */
+  /** Update parcial — usado al reagendar (date/time). En modo session el
+   *  reagendar real es ir a Booking flow; este path quedó para guest. */
   update: (id: string, fields: Partial<Omit<Appointment, 'id'>>) => void;
 }
 
@@ -41,49 +48,49 @@ const AppointmentsCtx = createContext<AppointmentsValue>({
   update: noop,
 });
 
-function loadFromKey(key: string, fallback: Appointment[]): Appointment[] {
+function loadGuest(): Appointment[] {
   try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
+    const raw = window.localStorage.getItem(GUEST_APPTS_KEY);
+    if (!raw) return USER.appointments;
     const parsed: unknown = JSON.parse(raw);
     if (Array.isArray(parsed)) return parsed as Appointment[];
   } catch {
     /* ignore */
   }
-  return fallback;
+  return USER.appointments;
 }
 
 export function AppointmentsProvider({ children }: { children: ReactNode }) {
   const { session } = useUser();
   const userId = session?.user?.id ?? null;
+  const queryClient = useQueryClient();
 
-  // Estado inicial: si arrancamos con sesión, vacío + restaurar lo que
-  // este user haya guardado antes. Si no, modo guest con USER mock.
-  const [appointments, setAppointments] = useState<Appointment[]>(() => {
-    if (userId) return loadFromKey(userApptsKey(userId), []);
-    return loadFromKey(GUEST_APPTS_KEY, USER.appointments);
-  });
+  // Guest state: USER mock + localStorage. Sólo se usa cuando no hay sesión.
+  const [guestAppts, setGuestAppts] = useState<Appointment[]>(loadGuest);
 
-  // Cuando cambia el contexto de auth, resetear desde el storage correcto.
-  // Sign-in: aplicar appointments del user (vacío si es nuevo).
-  // Sign-out: volver al modo demo con USER mock (o lo que el guest tenga).
   useEffect(() => {
-    if (userId) {
-      setAppointments(loadFromKey(userApptsKey(userId), []));
-    } else {
-      setAppointments(loadFromKey(GUEST_APPTS_KEY, USER.appointments));
-    }
+    if (userId) return; // Con sesión, el guest state queda dormido.
+    setGuestAppts(loadGuest());
   }, [userId]);
 
-  // Persist al storage que corresponde al contexto actual.
   useEffect(() => {
-    const key = userId ? userApptsKey(userId) : GUEST_APPTS_KEY;
+    if (userId) return;
     try {
-      window.localStorage.setItem(key, JSON.stringify(appointments));
+      window.localStorage.setItem(GUEST_APPTS_KEY, JSON.stringify(guestAppts));
     } catch {
       /* ignore */
     }
-  }, [appointments, userId]);
+  }, [guestAppts, userId]);
+
+  // Authed state: query a la tabla appointments. Solo activa con sesión.
+  const { data: dbAppts = [] } = useQuery({
+    queryKey: ['my-appointments', userId],
+    queryFn: fetchMyAppointments,
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
+
+  const appointments = userId ? dbAppts : guestAppts;
 
   const getById = useCallback(
     (id: string) => appointments.find((a) => a.id === id),
@@ -99,20 +106,55 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
     [appointments],
   );
 
-  const cancel = useCallback((id: string) => {
-    // Cancelar = marcar como past. Mantenemos el registro para historial.
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'past' } : a)),
-    );
-  }, []);
+  const cancel = useCallback(
+    (id: string) => {
+      if (userId) {
+        // Optimistic: marca past local + dispatch a la RPC.
+        queryClient.setQueryData<Appointment[]>(
+          ['my-appointments', userId],
+          (prev) =>
+            prev?.map((a) => (a.id === id ? { ...a, status: 'past' } : a)),
+        );
+        void cancelAppointmentRpc(id)
+          .then(() =>
+            queryClient.invalidateQueries({
+              queryKey: ['my-appointments', userId],
+            }),
+          )
+          .catch((err) => {
+            // eslint-disable-next-line no-console
+            console.error('[appointments] cancel failed:', err);
+            void queryClient.invalidateQueries({
+              queryKey: ['my-appointments', userId],
+            });
+          });
+        return;
+      }
+      // Guest: solo state local (cancelar = marcar past).
+      setGuestAppts((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: 'past' } : a)),
+      );
+    },
+    [userId, queryClient],
+  );
 
   const update = useCallback(
     (id: string, fields: Partial<Omit<Appointment, 'id'>>) => {
-      setAppointments((prev) =>
+      if (userId) {
+        // En modo session el "update" del provider no se usa — los cambios
+        // pasan por el flow de Booking que crea/actualiza pending_bookings.
+        // Optimistic local para preservar UX si alguna pantalla aún lo llama.
+        queryClient.setQueryData<Appointment[]>(
+          ['my-appointments', userId],
+          (prev) => prev?.map((a) => (a.id === id ? { ...a, ...fields } : a)),
+        );
+        return;
+      }
+      setGuestAppts((prev) =>
         prev.map((a) => (a.id === id ? { ...a, ...fields } : a)),
       );
     },
-    [],
+    [userId, queryClient],
   );
 
   const value = useMemo<AppointmentsValue>(

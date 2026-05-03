@@ -54,6 +54,9 @@ interface UserValue {
   profile: DbProfile | null;
   /** Update parcial del profile del owner. Persiste en DB y refresca state. */
   updateProfile: (updates: ProfileUpdate) => Promise<DbProfile | null>;
+  /** Refetch del profile sin escribir. Útil tras RPCs server-side
+   *  (ej: confirm_checkout que sube points/visits/spent). */
+  refreshProfile: () => Promise<DbProfile | null>;
   /**
    * Dispara un magic link al email indicado. La sesión se establece
    * cuando el usuario clickea el link y vuelve a la app.
@@ -74,6 +77,7 @@ const UserCtx = createContext<UserValue>({
   provider: null,
   profile: null,
   updateProfile: async () => null,
+  refreshProfile: async () => null,
   signInWithEmail: async () => ({ ok: false, error: 'No provider' }),
   signOut: async () => {},
   isAdmin: false,
@@ -176,6 +180,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
     [session],
   );
 
+  /** Refetch del profile desde DB. Útil tras acciones server-side que
+   *  modifican points/visits/spent (ej: confirm_checkout RPC). */
+  const refreshProfile = useCallback(async (): Promise<DbProfile | null> => {
+    if (!session?.user) return null;
+    const fresh = await fetchMyProfile();
+    if (fresh) setProfile(fresh);
+    return fresh;
+  }, [session]);
+
   const signInWithEmail = useCallback(
     async (email: string): Promise<SignInResult> => {
       const trimmed = email.trim();
@@ -222,6 +235,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       provider,
       profile,
       updateProfile,
+      refreshProfile,
       signInWithEmail,
       signOut,
       isAdmin: profile?.is_admin === true,
@@ -234,6 +248,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       provider,
       profile,
       updateProfile,
+      refreshProfile,
       signInWithEmail,
       signOut,
     ],

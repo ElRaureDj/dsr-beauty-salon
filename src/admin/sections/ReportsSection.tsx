@@ -1,5 +1,7 @@
 // DSR Admin — Reportes (cross-user).
-// KPIs reales sobre pending_bookings de todas las clientas (RLS admin SELECT).
+// KPIs reales sobre dos fuentes:
+//   - pending_bookings (lo que está en bolsas, sin confirmar)
+//   - appointments confirmed/completed (excluye cancelled)
 // Reseñas y settings vienen de CatalogProvider (ya DB-backed).
 
 import { useMemo } from 'react';
@@ -9,9 +11,19 @@ import { useI18n } from '../../i18n/LangProvider';
 import { Body, Eyebrow, H1, H3, Tiny } from '../../components/atoms';
 import { useCatalog } from '../../data/CatalogProvider';
 import {
+  fetchAllAppointmentsForAdmin,
   fetchAllPendingBookingsForAdmin,
+  type AdminAppointmentRow,
   type AdminPendingBookingRow,
 } from '../../lib/db';
+
+interface UnifiedRow {
+  userId: string;
+  artisanId: string;
+  serviceIds: string[];
+  date: string;
+  total: number;
+}
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -46,27 +58,60 @@ export function ReportsSection() {
   const artisans = getAllArtisans();
   const services = getAllServices();
 
-  const { data, isLoading, isError } = useQuery({
+  const pendingsQ = useQuery({
     queryKey: ['admin-pending-bookings'],
     queryFn: fetchAllPendingBookingsForAdmin,
     initialData: [] as AdminPendingBookingRow[],
     initialDataUpdatedAt: 0,
     staleTime: 30_000,
   });
+  const appointmentsQ = useQuery({
+    queryKey: ['admin-appointments'],
+    queryFn: fetchAllAppointmentsForAdmin,
+    initialData: [] as AdminAppointmentRow[],
+    initialDataUpdatedAt: 0,
+    staleTime: 30_000,
+  });
+
+  const isLoading = pendingsQ.isLoading || appointmentsQ.isLoading;
+  const isError = pendingsQ.isError || appointmentsQ.isError;
 
   const today = todayISO();
-  const all = data ?? [];
+  const all: UnifiedRow[] = useMemo(() => {
+    const out: UnifiedRow[] = [];
+    for (const p of pendingsQ.data ?? []) {
+      out.push({
+        userId: p.userId,
+        artisanId: p.artisanId,
+        serviceIds: p.serviceIds,
+        date: p.date,
+        total: p.total,
+      });
+    }
+    for (const a of appointmentsQ.data ?? []) {
+      // Excluimos cancelled — no representa revenue real.
+      if (a.rawStatus === 'cancelled') continue;
+      out.push({
+        userId: a.userId,
+        artisanId: a.artisan,
+        serviceIds: a.services,
+        date: a.date,
+        total: a.total,
+      });
+    }
+    return out;
+  }, [pendingsQ.data, appointmentsQ.data]);
 
   // ─── KPIs ────────────────────────────────────────────────────────────
-  const upcoming = all.filter((b) => b.date >= today);
-  const past = all.filter((b) => b.date < today);
+  const upcoming = all.filter((r) => r.date >= today);
+  const past = all.filter((r) => r.date < today);
 
-  const revenueUpcoming = upcoming.reduce((s, b) => s + b.total, 0);
-  const revenuePast = past.reduce((s, b) => s + b.total, 0);
+  const revenueUpcoming = upcoming.reduce((s, r) => s + r.total, 0);
+  const revenuePast = past.reduce((s, r) => s + r.total, 0);
   const revenueTotal = revenueUpcoming + revenuePast;
 
   const avgTicket = all.length > 0 ? revenueTotal / all.length : 0;
-  const uniqueClients = new Set(all.map((b) => b.userId)).size;
+  const uniqueClients = new Set(all.map((r) => r.userId)).size;
 
   const avgRating =
     reviews.length > 0

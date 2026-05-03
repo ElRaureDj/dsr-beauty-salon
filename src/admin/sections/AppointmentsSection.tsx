@@ -1,7 +1,11 @@
 // DSR Admin — Vista global de citas (cross-user).
-// Lee pending_bookings de TODOS los users vía RLS admin SELECT (migration 0007).
-// Combina con info del profile dueño para mostrar nombre/email del cliente.
-// Filtro por horizonte temporal (próximas / pasadas) basado en la fecha del booking.
+// Combina dos fuentes:
+//   - pending_bookings: lo que el customer guardó en su bolsa, sin confirmar.
+//   - appointments: confirmadas/completadas tras pasar por checkout.
+// Las cancelled (status DB) también se ven aquí — el admin las distingue.
+//
+// Filter chips por horizonte temporal (próximas / pasadas) basados en
+// la fecha de la cita.
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -17,11 +21,65 @@ import {
   Tiny,
 } from '../../components/atoms';
 import { useCatalog } from '../../data/CatalogProvider';
-import { fetchAllPendingBookingsForAdmin } from '../../lib/db';
+import {
+  fetchAllAppointmentsForAdmin,
+  fetchAllPendingBookingsForAdmin,
+  type AdminAppointmentRow,
+  type AdminPendingBookingRow,
+} from '../../lib/db';
 
 type Horizon = 'all' | 'upcoming' | 'past';
 
+type UnifiedRow = {
+  kind: 'pending' | 'appointment';
+  id: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  artisanId: string;
+  serviceIds: string[];
+  date: string;
+  time: string;
+  total: number;
+  duration: number;
+  /** Sólo para kind='appointment'. */
+  rawStatus?: 'confirmed' | 'completed' | 'cancelled';
+};
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function unifyPending(b: AdminPendingBookingRow): UnifiedRow {
+  return {
+    kind: 'pending',
+    id: b.id,
+    userId: b.userId,
+    userName: b.userName,
+    userEmail: b.userEmail,
+    artisanId: b.artisanId,
+    serviceIds: b.serviceIds,
+    date: b.date,
+    time: b.time,
+    total: b.total,
+    duration: b.duration,
+  };
+}
+
+function unifyAppointment(a: AdminAppointmentRow): UnifiedRow {
+  return {
+    kind: 'appointment',
+    id: a.id,
+    userId: a.userId,
+    userName: a.userName,
+    userEmail: a.userEmail,
+    artisanId: a.artisan,
+    serviceIds: a.services,
+    date: a.date,
+    time: a.time,
+    total: a.total,
+    duration: a.duration,
+    rawStatus: a.rawStatus,
+  };
+}
 
 export function AppointmentsSection() {
   const T = useTheme();
@@ -29,29 +87,43 @@ export function AppointmentsSection() {
   const { getArtisan, getService } = useCatalog();
   const [horizon, setHorizon] = useState<Horizon>('all');
 
-  const { data, isLoading, isError, error } = useQuery({
+  const pendingsQ = useQuery({
     queryKey: ['admin-pending-bookings'],
     queryFn: fetchAllPendingBookingsForAdmin,
     initialData: [],
     initialDataUpdatedAt: 0,
     staleTime: 30_000,
   });
+  const appointmentsQ = useQuery({
+    queryKey: ['admin-appointments'],
+    queryFn: fetchAllAppointmentsForAdmin,
+    initialData: [],
+    initialDataUpdatedAt: 0,
+    staleTime: 30_000,
+  });
+
+  const isLoading = pendingsQ.isLoading || appointmentsQ.isLoading;
+  const isError = pendingsQ.isError || appointmentsQ.isError;
+  const error = pendingsQ.error ?? appointmentsQ.error;
 
   const today = todayISO();
-  const all = data ?? [];
+  const all: UnifiedRow[] = [
+    ...(pendingsQ.data ?? []).map(unifyPending),
+    ...(appointmentsQ.data ?? []).map(unifyAppointment),
+  ];
 
   const counts = {
     all: all.length,
-    upcoming: all.filter((b) => b.date >= today).length,
-    past: all.filter((b) => b.date < today).length,
+    upcoming: all.filter((r) => r.date >= today).length,
+    past: all.filter((r) => r.date < today).length,
   };
 
   const filtered =
     horizon === 'all'
       ? all
       : horizon === 'upcoming'
-        ? all.filter((b) => b.date >= today)
-        : all.filter((b) => b.date < today);
+        ? all.filter((r) => r.date >= today)
+        : all.filter((r) => r.date < today);
 
   // Próximas: ascendente (las más cercanas primero). Pasadas: descendente.
   const sorted = [...filtered].sort((a, b) => {
@@ -74,6 +146,25 @@ export function AppointmentsSection() {
           ? 'Upcoming'
           : 'Past';
 
+  const kindBadge = (row: UnifiedRow): { label: string; color: string } => {
+    if (row.kind === 'pending') {
+      return {
+        label: lang === 'es' ? 'EN CART' : 'IN CART',
+        color: T.textMuted,
+      };
+    }
+    if (row.rawStatus === 'cancelled') {
+      return { label: lang === 'es' ? 'CANCELADA' : 'CANCELLED', color: T.rouge };
+    }
+    if (row.rawStatus === 'completed') {
+      return { label: lang === 'es' ? 'COMPLETADA' : 'COMPLETED', color: T.gold };
+    }
+    return {
+      label: lang === 'es' ? 'CONFIRMADA' : 'CONFIRMED',
+      color: T.gold,
+    };
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -83,8 +174,8 @@ export function AppointmentsSection() {
         </H1>
         <Body muted style={{ marginTop: 8, fontSize: 13, maxWidth: 540 }}>
           {lang === 'es'
-            ? 'Vista global de reservas guardadas en el cart de todas las clientas. Próximas y pasadas en función de la fecha programada.'
-            : 'Global view of bookings saved in client carts. Upcoming and past based on scheduled date.'}
+            ? 'Reservas confirmadas y bolsas en curso de todas las clientas. El badge en cada fila distingue el origen.'
+            : 'Confirmed bookings and live carts across all clients. Per-row badge marks the source.'}
         </Body>
       </div>
 
@@ -150,24 +241,26 @@ export function AppointmentsSection() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {sorted.map((b) => {
-            const ar = getArtisan(b.artisanId);
-            const services = b.serviceIds
+          {sorted.map((r) => {
+            const ar = getArtisan(r.artisanId);
+            const services = r.serviceIds
               .map(getService)
               .filter((s): s is NonNullable<ReturnType<typeof getService>> => !!s);
-            const isUpcoming = b.date >= today;
-            const customerLabel = b.userName ?? b.userEmail ?? `${b.userId.slice(0, 8)}...`;
+            const isUpcoming = r.date >= today;
+            const customerLabel = r.userName ?? r.userEmail ?? `${r.userId.slice(0, 8)}...`;
+            const badge = kindBadge(r);
             return (
               <div
-                key={b.id}
+                key={`${r.kind}-${r.id}`}
                 style={{
                   background: T.surface,
-                  boxShadow: `inset 0 0 0 1px ${isUpcoming ? `${T.gold}55` : T.line}`,
+                  boxShadow: `inset 0 0 0 1px ${isUpcoming && r.rawStatus !== 'cancelled' ? `${T.gold}55` : T.line}`,
                   padding: '16px 18px',
                   display: 'grid',
-                  gridTemplateColumns: '120px 180px 200px 1fr 110px 100px',
+                  gridTemplateColumns: '120px 180px 200px 1fr 130px 100px',
                   gap: 16,
                   alignItems: 'center',
+                  opacity: r.rawStatus === 'cancelled' ? 0.5 : 1,
                 }}
               >
                 <div>
@@ -179,7 +272,7 @@ export function AppointmentsSection() {
                       letterSpacing: 1,
                     }}
                   >
-                    {b.date}
+                    {r.date}
                   </Tiny>
                   <Tiny
                     style={{
@@ -192,7 +285,7 @@ export function AppointmentsSection() {
                       letterSpacing: 0.3,
                     }}
                   >
-                    {b.time}
+                    {r.time}
                   </Tiny>
                 </div>
                 <div style={{ minWidth: 0 }}>
@@ -217,7 +310,7 @@ export function AppointmentsSection() {
                   >
                     {customerLabel}
                   </Body>
-                  {b.userEmail && b.userName && (
+                  {r.userEmail && r.userName && (
                     <Tiny
                       muted
                       style={{
@@ -231,7 +324,7 @@ export function AppointmentsSection() {
                         display: 'block',
                       }}
                     >
-                      {b.userEmail}
+                      {r.userEmail}
                     </Tiny>
                   )}
                 </div>
@@ -241,7 +334,7 @@ export function AppointmentsSection() {
                   )}
                   <div style={{ minWidth: 0 }}>
                     <Body style={{ fontSize: 12, fontWeight: 500 }}>
-                      {ar?.name ?? b.artisanId}
+                      {ar?.name ?? r.artisanId}
                     </Body>
                     <Tiny
                       muted
@@ -252,25 +345,23 @@ export function AppointmentsSection() {
                         marginTop: 2,
                       }}
                     >
-                      {b.duration} min
+                      {r.duration} min
                     </Tiny>
                   </div>
                 </div>
                 <Body style={{ fontSize: 12, lineHeight: 1.4 }}>
                   {services.length > 0
                     ? services.map((s) => (lang === 'es' ? s.es : s.en)).join(' + ')
-                    : b.serviceIds.join(' + ')}
+                    : r.serviceIds.join(' + ')}
                 </Body>
                 <Tiny
                   style={{
                     fontSize: 10,
                     letterSpacing: 1.2,
-                    color: isUpcoming ? T.gold : T.textFaint,
+                    color: badge.color,
                   }}
                 >
-                  {isUpcoming
-                    ? (lang === 'es' ? 'PRÓXIMA' : 'UPCOMING')
-                    : (lang === 'es' ? 'PASADA' : 'PAST')}
+                  {badge.label}
                 </Tiny>
                 <H3
                   style={{
@@ -280,7 +371,7 @@ export function AppointmentsSection() {
                     textAlign: 'right',
                   }}
                 >
-                  €{b.total}
+                  €{r.total}
                 </H3>
               </div>
             );

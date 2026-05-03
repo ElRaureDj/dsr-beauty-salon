@@ -7,6 +7,7 @@
 import { supabase } from './supabase';
 import type {
   Address,
+  Appointment,
   Artisan,
   ArtisanSchedule,
   ArtisanScheduleDay,
@@ -1489,6 +1490,160 @@ export async function fetchAllPendingBookingsForAdmin(): Promise<
       userName: prof?.display_name ?? prof?.full_name ?? null,
       userEmail: prof?.email ?? null,
       userAvatarUrl: prof?.avatar_url ?? null,
+    };
+  });
+}
+
+// ---------- Appointments (confirmadas) ----------
+// Tabla nueva en migration 0012. Las pending_bookings se convierten a
+// appointments via la RPC confirm_checkout (0013) cuando el customer
+// pasa por CheckoutSuccess autenticado.
+
+type DbAppointmentStatus = 'confirmed' | 'completed' | 'cancelled';
+
+interface DbAppointment {
+  id: string;
+  user_id: string;
+  service_ids: string[];
+  artisan_id: string;
+  date: string;
+  time: string;
+  total: number;
+  duration: number;
+  notes: string | null;
+  variant: 'standard' | 'premium' | 'custom' | null;
+  addon_product_ids: string[];
+  combo_id: string | null;
+  discount_pct: number | null;
+  status: DbAppointmentStatus;
+  points_earned: number;
+}
+
+const APPOINTMENT_COLS =
+  'id, user_id, service_ids, artisan_id, date, time, total, duration, notes, variant, addon_product_ids, combo_id, discount_pct, status, points_earned';
+
+/**
+ * Mapea una row de DB al shape Appointment del frontend.
+ * El status DB ('confirmed' | 'completed' | 'cancelled') colapsa a
+ * 'confirmed' | 'past' para el customer:
+ *   - completed → past
+ *   - confirmed con date pasada → past (la cita ya pasó pero admin no la marcó)
+ *   - confirmed con date >= today → confirmed
+ *   - cancelled → null (filtramos antes de llamar)
+ */
+function mapAppointment(row: DbAppointment): Appointment {
+  const today = new Date().toISOString().slice(0, 10);
+  const isPastByDate = row.date < today;
+  const status: 'confirmed' | 'past' =
+    row.status === 'completed' || (row.status === 'confirmed' && isPastByDate)
+      ? 'past'
+      : 'confirmed';
+  return {
+    id: row.id,
+    date: row.date,
+    time: row.time,
+    services: row.service_ids,
+    artisan: row.artisan_id,
+    status,
+    total: Number(row.total),
+    duration: row.duration,
+    notes_es: row.notes ?? undefined,
+    variant: row.variant ?? undefined,
+    addonProductIds:
+      row.addon_product_ids.length > 0 ? row.addon_product_ids : undefined,
+    comboId: row.combo_id ?? undefined,
+    discountPct: row.discount_pct ?? undefined,
+    pointsEarned: row.points_earned,
+  };
+}
+
+/** Citas del user actual. Excluye cancelled — el customer no las ve. */
+export async function fetchMyAppointments(): Promise<Appointment[]> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(APPOINTMENT_COLS)
+    .neq('status', 'cancelled')
+    .order('date', { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as DbAppointment[]).map(mapAppointment);
+}
+
+/**
+ * Convierte el cart actual en appointments + decrementa stock + suma
+ * points/visits/spent. Atómico vía RPC SECURITY DEFINER (0013).
+ * Devuelve los IDs de las nuevas appointments.
+ */
+export async function confirmCheckout(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('confirm_checkout');
+  if (error) throw error;
+  return ((data ?? []) as Array<{ appointment_id: string }>).map(
+    (r) => r.appointment_id,
+  );
+}
+
+/**
+ * Cancela una cita propia. Si está en el futuro, hace rollback de
+ * points/visits/spent. RPC SECURITY DEFINER valida el caller (0013).
+ */
+export async function cancelAppointmentRpc(id: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_appointment', { appt_id: id });
+  if (error) throw error;
+}
+
+// Admin: vista cross-user de appointments. Mantiene el rawStatus para que
+// el admin pueda distinguir 'cancelled' de 'completed' (al customer le da
+// igual; al admin no).
+export interface AdminAppointmentRow extends Appointment {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  rawStatus: DbAppointmentStatus;
+}
+
+export async function fetchAllAppointmentsForAdmin(): Promise<
+  AdminAppointmentRow[]
+> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(APPOINTMENT_COLS)
+    .order('date', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as DbAppointment[];
+  if (rows.length === 0) return [];
+
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const { data: profiles, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, display_name, email')
+    .in('id', userIds);
+  if (pErr) throw pErr;
+
+  const profileMap = new Map<
+    string,
+    { full_name: string | null; display_name: string | null; email: string | null }
+  >();
+  for (const p of (profiles ?? []) as Array<{
+    id: string;
+    full_name: string | null;
+    display_name: string | null;
+    email: string | null;
+  }>) {
+    profileMap.set(p.id, {
+      full_name: p.full_name,
+      display_name: p.display_name,
+      email: p.email,
+    });
+  }
+
+  return rows.map((row): AdminAppointmentRow => {
+    const base = mapAppointment(row);
+    const prof = profileMap.get(row.user_id);
+    return {
+      ...base,
+      userId: row.user_id,
+      userName: prof?.display_name ?? prof?.full_name ?? null,
+      userEmail: prof?.email ?? null,
+      rawStatus: row.status,
     };
   });
 }

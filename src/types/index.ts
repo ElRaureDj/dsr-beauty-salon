@@ -134,10 +134,22 @@ export interface Appointment {
   time: string; // HH:MM
   services: string[]; // service ids
   artisan: string; // artisan id
+  /** Status simplificado para customer UI. Mapeado en db.ts:
+   *  - DB 'confirmed' + date >= today → 'confirmed'
+   *  - DB 'confirmed' + date < today  → 'past' (no marcada como completed aún)
+   *  - DB 'completed'                 → 'past'
+   *  - DB 'cancelled'                 → ocultada del fetch customer
+   */
   status: 'confirmed' | 'past';
   total: number;
   duration: number;
   notes_es?: string;
+  /** Campos extendidos (vienen de DB; legacy USER mock no los tiene). */
+  variant?: 'standard' | 'premium' | 'custom';
+  addonProductIds?: string[];
+  comboId?: string;
+  discountPct?: number;
+  pointsEarned?: number;
 }
 
 export interface Story {
