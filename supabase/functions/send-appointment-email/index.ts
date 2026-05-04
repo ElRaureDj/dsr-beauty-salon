@@ -1,5 +1,7 @@
-// DSR Maison — Edge Function: envía email de "cita confirmada".
-// Se invoca desde el cliente tras confirmar el checkout (CheckoutSuccess).
+// DSR Maison — Edge Function: envía emails transaccionales.
+// Soporta dos tipos:
+//   - 'confirmation' (default): tras checkout, "tu cita está confirmada".
+//   - 'reminder': llamado por pg_cron 24h antes para recordar la cita.
 //
 // Stack: Deno runtime (Supabase Edge), API de Resend (https://resend.com).
 // Deploy:  supabase functions deploy send-appointment-email
@@ -13,7 +15,11 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
+type EmailKind = 'confirmation' | 'reminder';
+
 interface Payload {
+  /** Default 'confirmation' por backwards compat. */
+  kind?: EmailKind;
   to: string;
   recipientName: string;
   artisanName: string;
@@ -38,6 +44,7 @@ const corsHeaders = {
 
 function buildHtml(p: Payload): string {
   const isEs = p.lang === 'es';
+  const isReminder = p.kind === 'reminder';
   const symbol = p.currency === 'USD' ? '$' : p.currency === 'EUR' ? '€' : p.currency;
   const dateLabel = new Date(p.date + 'T00:00:00').toLocaleDateString(
     isEs ? 'es-ES' : 'en-US',
@@ -46,9 +53,11 @@ function buildHtml(p: Payload): string {
   const services = p.serviceNames.join(' + ');
   const t = isEs
     ? {
-        eyebrow: 'Cita confirmada',
+        eyebrow: isReminder ? 'Mañana en la maison' : 'Cita confirmada',
         greeting: `Querida ${p.recipientName}`,
-        intro: 'Tu reserva en la maison está confirmada.',
+        intro: isReminder
+          ? 'Te esperamos mañana. Confirma tu llegada con tiempo y lleva tu mejor sonrisa.'
+          : 'Tu reserva en la maison está confirmada.',
         whenLabel: 'Cuándo',
         withLabel: 'Con',
         servicesLabel: 'Servicios',
@@ -58,9 +67,11 @@ function buildHtml(p: Payload): string {
         signoff: 'Su belleza, nuestro arte.',
       }
     : {
-        eyebrow: 'Appointment confirmed',
+        eyebrow: isReminder ? 'Tomorrow at the maison' : 'Appointment confirmed',
         greeting: `Dear ${p.recipientName}`,
-        intro: 'Your booking at the maison is confirmed.',
+        intro: isReminder
+          ? 'See you tomorrow. Please arrive with time to spare — bring your best smile.'
+          : 'Your booking at the maison is confirmed.',
         whenLabel: 'When',
         withLabel: 'With',
         servicesLabel: 'Services',
@@ -145,9 +156,14 @@ serve(async (req) => {
       );
     }
 
+    const isReminder = payload.kind === 'reminder';
     const subject = payload.lang === 'es'
-      ? `Tu cita en ${payload.salonName} está confirmada`
-      : `Your appointment at ${payload.salonName} is confirmed`;
+      ? isReminder
+        ? `Mañana te esperamos en ${payload.salonName}`
+        : `Tu cita en ${payload.salonName} está confirmada`
+      : isReminder
+        ? `See you tomorrow at ${payload.salonName}`
+        : `Your appointment at ${payload.salonName} is confirmed`;
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
