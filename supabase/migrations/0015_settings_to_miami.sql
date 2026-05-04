@@ -7,8 +7,8 @@
 update salon_settings
    set address = 'Lincoln Road 1234',
        city = 'Miami',
-       phone = '+1 305 555 0184',
-       whatsapp = '+1 305 555 0123',
+       phone = '+1 786 495 6697',
+       whatsapp = '+1 786 495 6697',
        currency = 'USD',
        timezone = 'America/New_York'
  where city = 'Madrid'

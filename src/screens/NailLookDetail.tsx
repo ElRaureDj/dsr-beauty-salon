@@ -17,8 +17,10 @@ import {
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
+import { useCurrency } from '../lib/format';
 export function NailLookDetail({ id }: { id: string }) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getArtisan, getService, getNailLook } = useCatalog();
@@ -107,7 +109,7 @@ export function NailLookDetail({ id }: { id: string }) {
               {lang === 'es' ? 'Duración' : 'Duration'}
             </Tiny>
             <Body style={{ marginTop: 6, fontSize: 13 }}>
-              {svc?.duration ?? 90} min · €{svc?.price ?? 95}
+              {svc?.duration ?? 90} min · {fmt(svc?.price ?? 95)}
             </Body>
           </div>
         </div>

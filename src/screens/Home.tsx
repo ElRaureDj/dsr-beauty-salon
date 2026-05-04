@@ -26,8 +26,10 @@ import { greeting, nextTier, tierFor } from '../data/helpers';
 import { I, IMG_HERO_SPRING, IMG_LOOK_OF_MONTH } from '../data/images';
 import { useRouter } from '../router/Router';
 
+import { useCurrency } from '../lib/format';
 export function Home() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -443,7 +445,7 @@ export function Home() {
                           textTransform: 'none',
                         }}
                       >
-                        €{base}
+                        {fmt(base)}
                       </Tiny>
                       <span
                         style={{
@@ -455,7 +457,7 @@ export function Home() {
                           lineHeight: 1,
                         }}
                       >
-                        €{final}
+                        {fmt(final)}
                       </span>
                     </div>
                   </div>

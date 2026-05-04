@@ -19,6 +19,7 @@ import {
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
+import { useCurrency } from '../lib/format';
 
 export function Bag() {
   const T = useTheme();
@@ -26,6 +27,7 @@ export function Bag() {
   const { go } = useRouter();
   const cart = useCart();
   const { getProduct } = useCatalog();
+  const { format: fmt } = useCurrency();
 
   const rows = cart.items
     .map((it) => {
@@ -198,7 +200,7 @@ export function Bag() {
                           fontSize: 16,
                         }}
                       >
-                        €{p.price * qty}
+                        {fmt(p.price * qty)}
                       </Tiny>
                     </div>
                   </div>
@@ -228,7 +230,7 @@ export function Bag() {
                 <Tiny muted style={{ letterSpacing: 0.4, textTransform: 'none' }}>
                   Subtotal
                 </Tiny>
-                <Tiny>€{subtotal}</Tiny>
+                <Tiny>{fmt(subtotal)}</Tiny>
               </div>
               <div
                 style={{
@@ -259,7 +261,7 @@ export function Bag() {
                   >
                     {t('promoApplied')} · {cart.appliedPromo.code}
                   </Tiny>
-                  <Tiny style={{ color: T.gold }}>−€{cart.promoDiscount}</Tiny>
+                  <Tiny style={{ color: T.gold }}>−{fmt(cart.promoDiscount)}</Tiny>
                 </div>
               )}
               <Divider style={{ margin: '10px 0' }} />
@@ -271,7 +273,7 @@ export function Bag() {
                 }}
               >
                 <Body style={{ fontWeight: 500 }}>Total</Body>
-                <H3 style={{ color: T.gold, fontStyle: 'italic' }}>€{total}</H3>
+                <H3 style={{ color: T.gold, fontStyle: 'italic' }}>{fmt(total)}</H3>
               </div>
               <Tiny
                 style={{

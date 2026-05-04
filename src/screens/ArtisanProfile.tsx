@@ -18,8 +18,10 @@ import { useFavorites } from '../data/FavoritesProvider';
 import { useRouter } from '../router/Router';
 import { ReviewsSection } from '../components/ReviewsSection';
 
+import { useCurrency } from '../lib/format';
 export function ArtisanProfile({ id }: { id: string }) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { lang } = useI18n();
   const { go } = useRouter();
   const { getArtisan, getAllServices, getReviews } = useCatalog();
@@ -169,7 +171,7 @@ export function ArtisanProfile({ id }: { id: string }) {
                       textTransform: 'none',
                     }}
                   >
-                    {s.duration} min · €{s.price}
+                    {s.duration} min · {fmt(s.price)}
                   </Tiny>
                 </div>
                 <Ico size={14} color={T.textMuted} stroke={1.5}>

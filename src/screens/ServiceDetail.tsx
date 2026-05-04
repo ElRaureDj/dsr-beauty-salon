@@ -26,8 +26,10 @@ import { useFavorites } from '../data/FavoritesProvider';
 import { ReviewsSection } from '../components/ReviewsSection';
 import type { VariantId } from '../data/service-variants';
 
+import { useCurrency } from '../lib/format';
 export function ServiceDetail({ id }: { id: string }) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getProduct, getService, getAllArtisans, getReviews } = useCatalog();
@@ -151,7 +153,7 @@ export function ServiceDetail({ id }: { id: string }) {
               textTransform: 'none',
             }}
           >
-            €{total}
+            {fmt(total)}
           </Tiny>
         </div>
         <GoldRule width={40} style={{ marginTop: 24 }} />
@@ -244,7 +246,7 @@ export function ServiceDetail({ id }: { id: string }) {
                       <Body style={{ fontSize: 13 }}>
                         {lang === 'es' ? p.name_es : p.name_en}
                       </Body>
-                      <Tiny style={{ color: T.gold }}>+ €{p.price}</Tiny>
+                      <Tiny style={{ color: T.gold }}>+ {fmt(p.price)}</Tiny>
                     </div>
                   ))}
                 </div>
@@ -342,7 +344,7 @@ export function ServiceDetail({ id }: { id: string }) {
                           flexShrink: 0,
                         }}
                       >
-                        + €{p.price}
+                        + {fmt(p.price)}
                       </Tiny>
                     </div>
                   );
@@ -369,7 +371,7 @@ export function ServiceDetail({ id }: { id: string }) {
                   {lang === 'es' ? 'Total con extras' : 'Total with extras'}
                 </Tiny>
                 <H3 style={{ color: T.gold, fontStyle: 'italic' }}>
-                  €{total}
+                  {fmt(total)}
                 </H3>
               </div>
             )}

@@ -29,6 +29,7 @@ import {
 } from '../lib/db';
 import { useToast } from '../components/atoms/Toast';
 
+import { useCurrency } from '../lib/format';
 function generateOrderId(): string {
   // 6-digit random; suficiente para mock
   const n = Math.floor(100000 + Math.random() * 900000);
@@ -37,6 +38,7 @@ function generateOrderId(): string {
 
 export function CheckoutSuccess() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
@@ -227,7 +229,7 @@ export function CheckoutSuccess() {
               fontWeight: 300,
             }}
           >
-            €{snapshot.total}
+            {fmt(snapshot.total)}
           </div>
         </div>
 

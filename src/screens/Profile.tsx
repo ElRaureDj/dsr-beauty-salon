@@ -21,8 +21,10 @@ import { useRouter } from '../router/Router';
 import { useUser } from '../data/UserProvider';
 import { useUserData } from '../data/useUserData';
 
+import { useCurrency } from '../lib/format';
 export function Profile() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang, setLang } = useI18n();
   const { go } = useRouter();
   const { getArtisan, getService } = useCatalog();
@@ -271,7 +273,7 @@ export function Profile() {
                         textTransform: 'none',
                       }}
                     >
-                      {lang === 'es' ? 'con' : 'with'} {ar.name} · €{apt.total}
+                      {lang === 'es' ? 'con' : 'with'} {ar.name} · {fmt(apt.total)}
                     </Tiny>
                   </div>
                 </div>
@@ -329,7 +331,7 @@ export function Profile() {
                         lang === 'es' ? 'es-ES' : 'en-US',
                         { day: 'numeric', month: 'short', year: 'numeric' },
                       )}{' '}
-                      · €{apt.total}
+                      · {fmt(apt.total)}
                     </Tiny>
                   </div>
                   <Tiny

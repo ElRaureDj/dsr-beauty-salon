@@ -19,8 +19,10 @@ import { USER_GIFTCARDS } from '../data/giftcards';
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
+import { useCurrency } from '../lib/format';
 export function GiftCards() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getGiftCardDesigns } = useCatalog();
@@ -103,7 +105,7 @@ export function GiftCards() {
                     fontWeight: 300,
                   }}
                 >
-                  €{totalReceived}
+                  {fmt(totalReceived)}
                 </div>
                 <Tiny
                   muted

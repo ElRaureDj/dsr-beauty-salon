@@ -22,6 +22,7 @@ import { useRouter } from '../router/Router';
 import { createGiftCard } from '../lib/db';
 import { useToast } from '../components/atoms';
 
+import { useCurrency } from '../lib/format';
 interface GiftBuyProps {
   initial?: { design?: string };
 }
@@ -104,6 +105,7 @@ function ReviewRow({ label, value, accent, last }: ReviewRowProps) {
 
 export function GiftBuy({ initial = {} }: GiftBuyProps) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getGiftCardDesigns, getGiftCardDesign } = useCatalog();
@@ -161,8 +163,8 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
             style={{ marginTop: 12, fontSize: 14, lineHeight: 1.6 }}
           >
             {lang === 'es'
-              ? `Tu gift card de €${finalAmount} viaja a ${recipient}.`
-              : `Your €${finalAmount} gift card is on its way to ${recipient}.`}
+              ? `Tu gift card de ${fmt(finalAmount)} viaja a ${recipient}.`
+              : `Your ${fmt(finalAmount)} gift card is on its way to ${recipient}.`}
           </Body>
           <div style={{ marginTop: 32, padding: '0 22px' }}>
             <GiftCardVisual design={design} amount={finalAmount} recipient={recipient} />
@@ -299,7 +301,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
                       }`,
                     }}
                   >
-                    €{a}
+                    {fmt(a)}
                   </button>
                 ))}
               </div>
@@ -307,7 +309,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
                 <input
                   value={custom}
                   onChange={(e) => setCustom(e.target.value.replace(/[^\d]/g, ''))}
-                  placeholder={lang === 'es' ? 'Otro monto · €' : 'Other amount · €'}
+                  placeholder={lang === 'es' ? 'Otro monto' : 'Other amount'}
                   style={{
                     width: '100%',
                     height: 52,
@@ -526,7 +528,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
                 />
                 <ReviewRow
                   label={lang === 'es' ? 'Monto' : 'Amount'}
-                  value={`€${finalAmount}`}
+                  value={fmt(finalAmount)}
                   accent
                 />
                 <ReviewRow
@@ -603,7 +605,7 @@ export function GiftBuy({ initial = {} }: GiftBuyProps) {
                 fontWeight: 300,
               }}
             >
-              €{finalAmount}
+              {fmt(finalAmount)}
             </div>
           </div>
           <button

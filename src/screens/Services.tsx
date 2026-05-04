@@ -22,8 +22,10 @@ import { IMG_LOOK_OF_MONTH, IMG_SERVICE } from '../data/images';
 import { useRouter } from '../router/Router';
 import type { CategoryId } from '../types';
 
+import { useCurrency } from '../lib/format';
 export function Services() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const [cat, setCat] = useState<CategoryId>('hair');
@@ -209,7 +211,7 @@ export function Services() {
                     textTransform: 'none',
                   }}
                 >
-                  €{s.price}
+                  {fmt(s.price)}
                 </Tiny>
               </div>
             </div>

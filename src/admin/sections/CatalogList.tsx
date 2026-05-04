@@ -19,6 +19,7 @@ import { useCatalog } from '../../data/CatalogProvider';
 import { Field, SidePanel, TextInput } from '../SidePanel';
 import type { CategoryId, Product, Service } from '../../types';
 
+import { useCurrency, currencySymbol } from '../../lib/format';
 const NEW_PRODUCT: Omit<Product, 'id'> = {
   name_es: '',
   name_en: '',
@@ -51,6 +52,7 @@ const NEW_SERVICE: Omit<Service, 'id'> = {
 
 export function ProductsSection() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { lang } = useI18n();
   const {
     getAllProducts,
@@ -151,7 +153,7 @@ export function ProductsSection() {
               {p.size}
             </Tiny>
             <H3 style={{ fontSize: 16, color: T.gold, fontStyle: 'italic', textAlign: 'right' }}>
-              €{p.price}
+              {fmt(p.price)}
             </H3>
             <span />
           </button>
@@ -210,6 +212,8 @@ function ProductEditor({
 }) {
   const T = useTheme();
   const { lang } = useI18n();
+  const { getSettings } = useCatalog();
+  const sym = currencySymbol(getSettings().currency);
   const [draft, setDraft] = useState<Product>(product);
   const set = <K extends keyof Product>(k: K, v: Product[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
@@ -316,7 +320,7 @@ function ProductEditor({
         </Field>
       </div>
 
-      <Field label={lang === 'es' ? 'Precio (€)' : 'Price (€)'}>
+      <Field label={lang === 'es' ? `Precio (${sym})` : `Price (${sym})`}>
         <TextInput
           type="number"
           value={String(draft.price)}
@@ -372,6 +376,7 @@ function ProductEditor({
 
 export function ServicesSection() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { lang } = useI18n();
   const {
     getAllServices,
@@ -483,7 +488,7 @@ export function ServicesSection() {
               {s.duration} min
             </Tiny>
             <H3 style={{ fontSize: 16, color: T.gold, fontStyle: 'italic', textAlign: 'right' }}>
-              €{s.price}
+              {fmt(s.price)}
             </H3>
             <span />
           </button>
@@ -542,6 +547,8 @@ function ServiceEditor({
 }) {
   const T = useTheme();
   const { lang } = useI18n();
+  const { getSettings } = useCatalog();
+  const sym = currencySymbol(getSettings().currency);
   const [draft, setDraft] = useState<Service>(service);
   const set = <K extends keyof Service>(k: K, v: Service[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
@@ -663,7 +670,7 @@ function ServiceEditor({
             onChange={(v) => set('duration', Number(v) || 0)}
           />
         </Field>
-        <Field label={lang === 'es' ? 'Precio (€)' : 'Price (€)'}>
+        <Field label={lang === 'es' ? `Precio (${sym})` : `Price (${sym})`}>
           <TextInput
             type="number"
             value={String(draft.price)}

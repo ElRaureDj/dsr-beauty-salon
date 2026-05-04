@@ -21,8 +21,10 @@ import { useCatalog } from '../data/CatalogProvider';
 import { useFavorites } from '../data/FavoritesProvider';
 import { useRouter } from '../router/Router';
 
+import { useCurrency } from '../lib/format';
 export function Favorites() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { lang } = useI18n();
   const { go } = useRouter();
   const { byKind } = useFavorites();
@@ -110,7 +112,7 @@ export function Favorites() {
                       marginTop: 2,
                     }}
                   >
-                    €{p.price}
+                    {fmt(p.price)}
                   </Tiny>
                 </div>
               ))}
@@ -147,7 +149,7 @@ export function Favorites() {
                       textTransform: 'none',
                     }}
                   >
-                    {s.duration} min · €{s.price}
+                    {s.duration} min · {fmt(s.price)}
                   </Tiny>
                 </div>
               ))}

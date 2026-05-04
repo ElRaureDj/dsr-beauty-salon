@@ -21,6 +21,7 @@ import {
   Tiny,
 } from '../../components/atoms';
 import { useCatalog } from '../../data/CatalogProvider';
+import { useCurrency } from '../../lib/format';
 import {
   fetchAllAppointmentsForAdmin,
   fetchAllPendingBookingsForAdmin,
@@ -83,6 +84,7 @@ function unifyAppointment(a: AdminAppointmentRow): UnifiedRow {
 
 export function AppointmentsSection() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { lang } = useI18n();
   const { getArtisan, getService } = useCatalog();
   const [horizon, setHorizon] = useState<Horizon>('all');
@@ -371,7 +373,7 @@ export function AppointmentsSection() {
                     textAlign: 'right',
                   }}
                 >
-                  €{r.total}
+                  {fmt(r.total)}
                 </H3>
               </div>
             );

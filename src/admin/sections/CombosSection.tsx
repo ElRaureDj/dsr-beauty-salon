@@ -20,6 +20,7 @@ import { useCatalog } from '../../data/CatalogProvider';
 import { Field, SidePanel, TextInput } from '../SidePanel';
 import type { Combo } from '../../types';
 
+import { useCurrency } from '../../lib/format';
 const NEW_COMBO: Omit<Combo, 'id'> = {
   name_es: '',
   name_en: '',
@@ -32,6 +33,7 @@ const NEW_COMBO: Omit<Combo, 'id'> = {
 
 export function CombosSection() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { getCombos, getAllServices, createCombo, updateCombo, deleteCombo, resetCombos } =
     useCatalog();
@@ -192,10 +194,10 @@ export function CombosSection() {
                     textDecoration: 'line-through',
                   }}
                 >
-                  €{base}
+                  {fmt(base)}
                 </Tiny>
                 <H3 style={{ fontSize: 16, color: T.gold, fontStyle: 'italic', textAlign: 'right' }}>
-                  €{final}
+                  {fmt(final)}
                 </H3>
                 <Ico size={12} color={T.textMuted}>
                   {Icons.chev}
@@ -262,6 +264,7 @@ function ComboEditor({
   onDelete?: () => void;
 }) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const [draft, setDraft] = useState<Combo>(initial);
   const set = <K extends keyof Combo>(k: K, v: Combo[K]) =>
@@ -405,7 +408,7 @@ function ComboEditor({
                       fontFamily: T.mono,
                     }}
                   >
-                    {s.id} · {s.duration} min · €{s.price}
+                    {s.id} · {s.duration} min · {fmt(s.price)}
                   </Tiny>
                 </div>
               </button>
@@ -416,7 +419,7 @@ function ComboEditor({
 
       <Field
         label={`${t('combosDiscount')} (%)`}
-        hint={`${t('combosBasePrice')}: €${base} · ${t('combosFinalPrice')}: €${final}`}
+        hint={`${t('combosBasePrice')}: ${fmt(base)} · ${t('combosFinalPrice')}: ${fmt(final)}`}
       >
         <TextInput
           type="number"

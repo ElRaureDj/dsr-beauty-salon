@@ -16,10 +16,12 @@ import { Ico, Icons } from './Icon';
 import { Img } from './Layout';
 import { PromoInput } from './PromoInput';
 
+import { useCurrency } from '../../lib/format';
 const ANIMATION_MS = 320;
 
 export function CartDrawer() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
@@ -331,7 +333,7 @@ export function CartDrawer() {
                         fontSize: 16,
                       }}
                     >
-                      €{b.total}
+                      {fmt(b.total)}
                     </Tiny>
                   </div>
                 </div>
@@ -464,7 +466,7 @@ export function CartDrawer() {
                           fontSize: 15,
                         }}
                       >
-                        €{p.price * it.qty}
+                        {fmt(p.price * it.qty)}
                       </Tiny>
                     </div>
                   </div>

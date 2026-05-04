@@ -18,10 +18,12 @@ import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 import type { ReceivedGiftCard, SentGiftCard } from '../types';
 
+import { useCurrency } from '../lib/format';
 type Tab = 'received' | 'sent';
 
 export function GiftMine() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getGiftCardDesign } = useCatalog();
@@ -188,9 +190,9 @@ export function GiftMine() {
                               fontSize: 14,
                             }}
                           >
-                            €{received.balance}
+                            {fmt(received.balance)}
                           </span>{' '}
-                          / €{received.amount}
+                          / {fmt(received.amount)}
                         </Tiny>
                         <div style={{ flex: 1 }} />
                         <button

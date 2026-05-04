@@ -1,5 +1,6 @@
 // DSR — Reusable gift-card visual (compact thumbnail or full-size preview)
 import { useTheme } from '../theme/ThemeProvider';
+import { useCurrency } from '../lib/format';
 import type { GiftCardDesign } from '../types';
 
 interface GiftCardVisualProps {
@@ -16,6 +17,7 @@ export function GiftCardVisual({
   compact = false,
 }: GiftCardVisualProps) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const w = compact ? 180 : '100%';
   const h = compact ? 112 : 220;
   const padX = compact ? 14 : 24;
@@ -94,7 +96,7 @@ export function GiftCardVisual({
               lineHeight: 1,
             }}
           >
-            €{amount}
+            {amount != null ? fmt(amount) : ''}
           </div>
         )}
       </div>

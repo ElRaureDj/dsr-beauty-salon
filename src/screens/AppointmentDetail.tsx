@@ -32,12 +32,14 @@ import { useRouter } from '../router/Router';
 import { buildIcsEvent, downloadIcs } from '../data/calendar';
 import type { Review } from '../types';
 
+import { useCurrency } from '../lib/format';
 interface Props {
   id: string;
 }
 
 export function AppointmentDetail({ id }: Props) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getById, cancel } = useAppointments();
@@ -263,7 +265,7 @@ export function AppointmentDetail({ id }: Props) {
                   <Body style={{ fontSize: 13 }}>
                     {lang === 'es' ? s.es : s.en}
                   </Body>
-                  <Body style={{ fontSize: 13 }}>€{s.price}</Body>
+                  <Body style={{ fontSize: 13 }}>{fmt(s.price)}</Body>
                 </div>
               ))}
             </div>
@@ -279,7 +281,7 @@ export function AppointmentDetail({ id }: Props) {
             >
               <Body style={{ fontWeight: 500 }}>Total</Body>
               <H3 style={{ color: T.gold, fontStyle: 'italic' }}>
-                €{appt.total}
+                {fmt(appt.total)}
               </H3>
             </div>
             <Tiny

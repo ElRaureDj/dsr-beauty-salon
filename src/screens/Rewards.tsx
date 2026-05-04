@@ -21,12 +21,15 @@ import { nextTier, tierFor } from '../data/helpers';
 import { useRouter } from '../router/Router';
 import { fetchMyReferralCode } from '../lib/db';
 import { useToast } from '../components/atoms';
+import { useCurrency, currencySymbol } from '../lib/format';
 
 export function Rewards() {
   const T = useTheme();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { getTiers, getSettings } = useCatalog();
+  const { format: fmt } = useCurrency();
+  const sym = currencySymbol(getSettings().currency);
   const { signedIn } = useUser();
   const { show: showToast } = useToast();
   const user = useUserData();
@@ -220,7 +223,7 @@ export function Rewards() {
         {[
           { v: user.points.toLocaleString(), l: t('points') },
           { v: String(user.visits), l: t('visits') },
-          { v: `€${user.spent.toLocaleString()}`, l: t('spent') },
+          { v: `${sym}${user.spent.toLocaleString()}`, l: t('spent') },
         ].map((s, i) => (
           <div
             key={i}
@@ -433,7 +436,7 @@ export function Rewards() {
                 color: 'rgba(212,184,134,0.6)',
               }}
             >
-              €50 — €1000
+              {fmt(50)} — {fmt(1000)}
             </Tiny>
           </div>
         </div>
@@ -515,8 +518,8 @@ export function Rewards() {
             style={{ marginTop: 8, fontSize: 13, lineHeight: 1.55 }}
           >
             {lang === 'es'
-              ? 'Comparte tu código. Cuando una amiga reserve su primera cita, ambas reciben un crédito de €50.'
-              : 'Share your code. When a friend books her first visit, you both get a $50 credit.'}
+              ? `Comparte tu código. Cuando una amiga reserve su primera cita, ambas reciben un crédito de ${fmt(50)}.`
+              : `Share your code. When a friend books her first visit, you both get a ${fmt(50)} credit.`}
           </Body>
           <div
             style={{

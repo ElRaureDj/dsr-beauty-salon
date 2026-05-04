@@ -17,6 +17,7 @@ import {
   Tiny,
 } from '../../components/atoms';
 import { PRODUCTS, SERVICES } from '../../data/catalog';
+import { useCurrency } from '../../lib/format';
 import {
   useCatalog,
   type MergedVariantConfig,
@@ -24,6 +25,7 @@ import {
 
 export function VariantsSection() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { lang } = useI18n();
   const { getServiceVariants, setServiceVariants, overriddenServiceIds, resetVariants } =
     useCatalog();
@@ -144,7 +146,7 @@ export function VariantsSection() {
                     textTransform: 'none',
                   }}
                 >
-                  {s.id} · €{s.price} · {hasPremium ? 'P' : '—'}{' '}
+                  {s.id} · {fmt(s.price)} · {hasPremium ? 'P' : '—'}{' '}
                   {hasCustom ? 'C' : '—'}
                 </Tiny>
                 {overridden && (
@@ -202,6 +204,7 @@ function ServiceVariantEditor({
   T: ReturnType<typeof useTheme>;
   lang: 'es' | 'en';
 }) {
+  const { format: fmt } = useCurrency();
   const cfg: MergedVariantConfig = config ?? {};
   const hasPremium = !!cfg.premium;
   const hasCustom = !!(
@@ -284,7 +287,7 @@ function ServiceVariantEditor({
               display: 'block',
             }}
           >
-            €{servicePrice}
+            {fmt(servicePrice)}
           </Tiny>
         </div>
         <button
@@ -505,6 +508,7 @@ function ProductGrid({
   T: ReturnType<typeof useTheme>;
   lang: 'es' | 'en';
 }) {
+  const { format: fmt } = useCurrency();
   return (
     <div
       style={{
@@ -573,7 +577,7 @@ function ProductGrid({
                   textTransform: 'none',
                 }}
               >
-                {p.id} · €{p.price}
+                {p.id} · {fmt(p.price)}
               </Tiny>
             </div>
           </button>

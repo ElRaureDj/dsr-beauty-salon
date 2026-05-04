@@ -7,10 +7,12 @@ import { Body, Chip, Eyebrow, H1, H3, Tiny } from '../../components/atoms';
 import { GIFTCARD_DESIGNS, USER_GIFTCARDS } from '../../data/giftcards';
 import { useState } from 'react';
 
+import { useCurrency } from '../../lib/format';
 type Tab = 'designs' | 'codes';
 
 export function GiftCardsSection() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { lang } = useI18n();
   const [tab, setTab] = useState<Tab>('designs');
 
@@ -208,7 +210,7 @@ export function GiftCardsSection() {
                   textTransform: 'none',
                 }}
               >
-                €{c.amount}
+                {fmt(c.amount)}
               </Tiny>
               <Body style={{ fontSize: 12 }}>
                 <span
@@ -241,7 +243,7 @@ export function GiftCardsSection() {
                   textAlign: 'right',
                 }}
               >
-                €{c.balance}
+                {fmt(c.balance)}
               </H3>
             </div>
           ))}

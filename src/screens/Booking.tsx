@@ -31,6 +31,7 @@ import { cancelAppointmentRpc, fetchTakenSlots } from '../lib/db';
 import { buildIcsEvent, downloadIcs } from '../data/calendar';
 import type { CategoryId } from '../types';
 
+import { useCurrency } from '../lib/format';
 interface BookingProps {
   initial?: {
     service?: string;
@@ -48,6 +49,7 @@ interface BookingProps {
 
 export function Booking({ initial = {}, editingBookingId }: BookingProps) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
@@ -322,7 +324,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                           textTransform: 'none',
                         }}
                       >
-                        {s.duration} min · €{s.price}
+                        {s.duration} min · {fmt(s.price)}
                       </Tiny>
                     </div>
                   </div>
@@ -354,7 +356,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                   <Body style={{ fontWeight: 500 }}>
                     {lang === 'es' ? 'Total estimado' : 'Estimated total'}
                   </Body>
-                  <H3 style={{ color: T.gold, fontStyle: 'italic' }}>€{totalPrice}</H3>
+                  <H3 style={{ color: T.gold, fontStyle: 'italic' }}>{fmt(totalPrice)}</H3>
                 </div>
               </div>
             )}
@@ -804,7 +806,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                     }}
                   >
                     <Body style={{ fontSize: 13 }}>{lang === 'es' ? s.es : s.en}</Body>
-                    <Body style={{ fontSize: 13 }}>€{s.price}</Body>
+                    <Body style={{ fontSize: 13 }}>{fmt(s.price)}</Body>
                   </div>
                 ))}
                 {comboObj && comboStillValid && (
@@ -833,7 +835,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                       </Body>
                     </div>
                     <Body style={{ fontSize: 13, color: T.gold, fontStyle: 'italic' }}>
-                      −€{discountAmount}
+                      −{fmt(discountAmount)}
                     </Body>
                   </div>
                 )}
@@ -847,7 +849,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                 }}
               >
                 <Body style={{ fontWeight: 500 }}>Total</Body>
-                <H3 style={{ color: T.gold, fontStyle: 'italic' }}>€{totalPrice}</H3>
+                <H3 style={{ color: T.gold, fontStyle: 'italic' }}>{fmt(totalPrice)}</H3>
               </div>
               <Tiny
                 style={{
@@ -1063,7 +1065,7 @@ export function Booking({ initial = {}, editingBookingId }: BookingProps) {
                       fontSize: 16,
                     }}
                   >
-                    €{totalPrice}
+                    {fmt(totalPrice)}
                   </Tiny>
                 </div>
               </div>

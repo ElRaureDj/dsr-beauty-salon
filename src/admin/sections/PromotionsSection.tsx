@@ -5,6 +5,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useI18n } from '../../i18n/LangProvider';
 import { Body, Btn, Eyebrow, H1, Ico, Icons, Tiny } from '../../components/atoms';
 import { useCatalog } from '../../data/CatalogProvider';
+import { useCurrency, currencySymbol } from '../../lib/format';
 import { Field, SidePanel, TextInput } from '../SidePanel';
 import type { Promo } from '../../types';
 
@@ -24,6 +25,7 @@ export function PromotionsSection() {
   const T = useTheme();
   const { lang } = useI18n();
   const { getPromos, createPromo, updatePromo, deletePromo } = useCatalog();
+  const { format: fmt } = useCurrency();
   const promos = getPromos();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -140,7 +142,7 @@ export function PromotionsSection() {
                 textTransform: 'none',
               }}
             >
-              {p.type === 'pct' ? `-${p.value}%` : `-€${p.value}`}
+              {p.type === 'pct' ? `-${p.value}%` : `-${fmt(p.value)}`}
             </Tiny>
             <Tiny
               style={{ fontFamily: T.mono, fontSize: 11, color: T.textMuted, textTransform: 'none' }}
@@ -220,6 +222,8 @@ function PromoEditor({
 }) {
   const T = useTheme();
   const { lang } = useI18n();
+  const { getSettings } = useCatalog();
+  const sym = currencySymbol(getSettings().currency);
   const [draft, setDraft] = useState<Promo>(initial);
   const set = <K extends keyof Promo>(k: K, v: Promo[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
@@ -297,7 +301,7 @@ function PromoEditor({
                     fontWeight: 500,
                   }}
                 >
-                  {tp === 'pct' ? '%' : '€'}
+                  {tp === 'pct' ? '%' : sym}
                 </button>
               );
             })}

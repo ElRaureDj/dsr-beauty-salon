@@ -13,8 +13,10 @@ import {
 import { useCatalog } from '../data/CatalogProvider';
 import { useRouter } from '../router/Router';
 
+import { useCurrency } from '../lib/format';
 export function Shop() {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const products = useCatalog().getAllProducts();
@@ -87,7 +89,7 @@ export function Shop() {
                 fontWeight: 300,
               }}
             >
-              €{featured.price}
+              {fmt(featured.price)}
             </div>
           </div>
         </div>
@@ -182,7 +184,7 @@ export function Shop() {
                       fontSize: 14,
                     }}
                   >
-                    €{p.price}
+                    {fmt(p.price)}
                   </Tiny>
                 </div>
               </div>

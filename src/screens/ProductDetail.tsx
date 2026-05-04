@@ -21,6 +21,7 @@ import { useFavorites } from '../data/FavoritesProvider';
 import { useRouter } from '../router/Router';
 import { useCart } from '../cart/CartProvider';
 
+import { useCurrency } from '../lib/format';
 interface Slide {
   src?: string;
   video?: string;
@@ -29,6 +30,7 @@ interface Slide {
 
 export function ProductDetail({ id }: { id: string }) {
   const T = useTheme();
+  const { format: fmt } = useCurrency();
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const cart = useCart();
@@ -380,7 +382,7 @@ export function ProductDetail({ id }: { id: string }) {
                 marginTop: 2,
               }}
             >
-              €{p.price}
+              {fmt(p.price)}
             </div>
           </div>
           <Btn
