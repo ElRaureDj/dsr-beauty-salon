@@ -21,17 +21,27 @@ Originalmente un bundle de Claude Design (HTML + JSX prototípico) que fue porta
 - **Fase 1** (`phase1/original-code`) ✅ — mergeada en PR #1. App completa funcionando 100% con `localStorage`. Incluye desde el origen: promos en cart, reseñas en Service/Artisan, badge de bajo stock en Product, combo booking end-to-end con descuento.
 - **Fase 2** (`phase2/moving-online`) ✅ — mergeada en PR #2. Schema + seed inicial, cliente Supabase, magic-link auth real (PKCE), catálogo (products/services/artisans/nail_looks/gift_card_designs) leyendo desde DB con TanStack Query, profiles + `useUserData`, personal info editable, direcciones de envío US-only.
 - **Fase 7** (`phase2/conectando-con-el-exterior`) ✅ — mergeada en PR #3 (`f063a8e`). cart_items + pending_bookings session-aware (`cfa1e6a`), admin role real `profile.is_admin` (`d4e96bb`), combos/promos al backend (`91d4b84`), stocks/schedules/tier_rules/reviews/settings/variants a DB (`3d2abd3`), products/services/artisans writes a Supabase (`b9c8562`). Cerró la migración del catálogo.
-- **Fase 8** (`phase2/missing-details`, branch actual) 🚧 — fase grande de "missing details" abordando varios items de auditoría.
-  - **Cross-user admin reads** (`6c6988c`): AppointmentsSection y ReportsSection leen `pending_bookings` de todas las clientas vía RLS admin. Migration 0007. Nuevo `fetchAllPendingBookingsForAdmin()`.
-  - **Schedule per-day** (`5e5dd1b`): tabla `artisan_schedules` rediseñada a `artisan_schedule_days(artisan_id, weekday)`. UI por día. `buildSchedule()` consume schedule real.
-  - **Email template bilingüe** (`fe648e7`, footer ajustado en `5fdb285`): HTML inline DSR ES + EN.
-  - **Settings + tier thresholds → customer** (`13e34d7`): Onboarding/Auth leen `salon_settings`. Nuevo `getTiers()` combina TIERS estáticos + `tier_rules.thresholdPoints` real.
-  - **Promo usedCount RPC + fecha real** (`69e535f`): migration 0009 con `increment_promo_use(text)` SECURITY DEFINER. CheckoutSuccess incrementa al mount. `buildSchedule.startDate` ahora es `new Date()`.
-  - **Reseñas customer** (`a7486f3`): migration 0010 con `reviews.user_id` + policies + unique parcial. Atom `<RateStars>`. Modal en AppointmentDetail. Profile rows clickeables.
-  - **Theme + lang en profile** (`a15eb25`): migration 0011 con `profiles.theme` y `profiles.preferred_lang`. `<PrefsSync>` invisible en App.tsx orquesta DB ↔ providers (initial sync DB→local, cambios post-sync local→DB).
-  - **Appointments tabla real + checkout integrado**: migrations 0012 (tabla `appointments` con status + RLS own/admin) y 0013 (RPCs `confirm_checkout` y `cancel_appointment` SECURITY DEFINER). AppointmentsProvider session-aware: con sesión lee `appointments` via TanStack Query, sin sesión queda en USER mock. CheckoutSuccess autenticado llama confirm_checkout (atómico: pending → appointments + stock decrement + points/visits/spent + cleanup). cancel_appointment hace rollback de puntos si la cita era futura. Admin: AppointmentsSection unifica pending + confirmed con badges (EN CART / CONFIRMADA / COMPLETADA / CANCELADA). ReportsSection suma ambas fuentes (excluye cancelled).
+- **Fase 8** (`phase2/missing-details`) ✅ — mergeada en PR #5. Cross-user admin reads (`6c6988c`), schedule per-day (`5e5dd1b`), email template bilingüe (`fe648e7` + `5fdb285`), settings+tier thresholds al customer (`13e34d7`), promo usedCount RPC + fecha real (`69e535f`), reseñas customer (`a7486f3`), theme+lang en profile (`a15eb25`), appointments tabla real + checkout integrado (`e9324e8`), slot collision check (`284347d`), unify HIDE_TAB/CHROME (`d0e55d3`). Migrations 0007-0014.
+- **Fase 9** (`phase2/last-details`, branch actual) 🚧 — auditoría exhaustiva de production-readiness. Sprint largo completado.
+  - **SEO + manifest + favicon real** (`5af7bc0`): meta tags, Open Graph, Twitter card, manifest.webmanifest, favicon.svg en `public/`.
+  - **Toast + Skeleton globales** (`f646013`): atoms infra + ToastProvider en App.tsx. Conectados a CheckoutSuccess error y AppointmentDetail review success.
+  - **Salon a Miami** (`c318c1c`): DEFAULT_SETTINGS con city/address/phone/whatsapp/currency=USD/timezone=America/New_York. Migration 0015 hace UPDATE idempotente.
+  - **Política de cancelación + términos + privacidad bilingüe** (`29bdd8a`): `src/data/legal.ts` + screen `Legal` con tabs. Linkeado desde Profile y disclaimer en Booking step 3. Política con depósito tier-based (Pearl $50 / Gold $25 / Noir 0).
+  - **Customer ve "Cancelada" distinto de "Pasada"** (`fde93de`): `Appointment.status` amplía a `'cancelled'`. AppointmentDetail badge rouge, Profile rows con badge distinto.
+  - **Calendar export `.ics`** (`db81575`): `src/data/calendar.ts` con `buildIcsEvent()` + `downloadIcs()` standalone (sin libs). Conectado a Booking step 4 y AppointmentDetail.
+  - **Favoritos** (`a8359aa`): tabla `favorites` migration 0016 + FavoritesProvider session-aware + screen Favorites. Botón corazón funcional en ProductDetail/ServiceDetail/ArtisanProfile.
+  - **Buscador global** (`f49a814`): atom `<SearchOverlay>` con input + resultados agrupados. Conectado al icono de lupa en Home.
+  - **Code splitting** (`5977476`): lazy load de Admin + 14 screens secundarias. Bundle index 722 → 589 kB.
+  - **Reagendar cancela cita vieja** (`c344437`): `RouteParams.replacesAppointment` + cancelAppointmentRpc al guardar nueva.
+  - **Programa Amigas / referidos** (`aa92f53`): migration 0017 con tabla `referrals` + `my_referral_code()` + `find_referrer_by_code()`. UI en Rewards con código + Share. Lógica de aplicar crédito al referrer pendiente (depende de pagos reales).
+  - **Gift cards reales** (`8de9879`): migration 0018 con tabla `gift_cards` + RPC `redeem_gift_card`. GiftBuy persiste row al "comprar" (cobro sigue mock).
+  - **Audit log admin** (`f059499`, expandido en `975d12f`): migration 0019 + 0021 con tabla `audit_log` + triggers en salon_settings/tier_rules/products/services/artisans/promos/combos/product_stocks/artisan_schedule_days. Admin section `AuditLog` con filter chips y diff visual.
+  - **Tests críticos Vitest** (`968ab25`): 28 tests cubriendo `tierFor/nextTier`, `buildSchedule` (collision check, dayOff, fallback determinista), `buildIcsEvent`. Encontró y arregló bug UTC en buildSchedule.
+  - **Sentry error tracking** (`52df697`): `@sentry/react` + ErrorBoundary global con fallback editorial. No-op si `VITE_SENTRY_DSN` vacío. **Activación pendiente del usuario** (ver "En hold" abajo).
+  - **Edge Function send-appointment-email** (`96e529e`, expandida en `9752606`): Deno + Resend API. Soporta `kind=confirmation` (al checkout, ya conectado en CheckoutSuccess) y `kind=reminder` (24h antes, dispatched por pg_cron). Migration 0020 con `send_appointment_reminders()` + `cron.schedule` diario 10:00 UTC. **Activación pendiente del usuario** (ver "En hold" abajo).
+  - **Currency refactor** (`859c9a3`): `src/lib/format.ts` con `useCurrency()` + `currencySymbol()`. Reemplazo de ~50 `€{x}` hardcoded en 26 archivos. Customer y admin ahora muestran el símbolo según `salon_settings.currency` (hoy USD para Miami).
 
-> Próxima acción sugerida: aplicar migrations 0007–0013 en Supabase, pegar el template del magic link en el dashboard, y configurar Vercel.
+> Próxima acción sugerida: PR #6 a main, después atacar Sentry / Resend cuando el usuario decida activarlos.
 
 ---
 
@@ -52,6 +62,8 @@ npm run dev        # http://localhost:5173 (Vite respeta process.env.PORT)
 npm run build      # tsc -b && vite build
 npm run typecheck  # tsc -b --noEmit
 npm run preview    # preview del build
+npm run test       # vitest run (28 tests cubriendo helpers + calendar)
+npm run test:watch # vitest en modo watch
 ```
 
 ---
@@ -82,7 +94,14 @@ VITE_SUPABASE_ANON_KEY=sb_publishable__fYtbk7SYClaJyNAWgXQLA_NUstNSl-
 11. `0011_profile_preferences.sql` — `profiles.theme` ('noir'|'marbre') y `profiles.preferred_lang` ('es'|'en') con defaults + check constraints. Las RLS `_own` existentes ya cubren las nuevas columnas.
 12. `0012_appointments.sql` — tabla `appointments` (uuid PK, status `confirmed/completed/cancelled`, `points_earned` snapshot, FKs a artisans y combos). RLS `_own` para customer + admin SELECT cross-user + admin UPDATE para gestión.
 13. `0013_checkout_rpcs.sql` — dos RPCs SECURITY DEFINER: `confirm_checkout()` mueve pending_bookings → appointments + decrementa stock + suma points/visits/spent (con multiplier del tier actual del user) + limpia bolsa, todo atómico. `cancel_appointment(uuid)` valida ownership + actualiza status + hace rollback de points/visits/spent si la cita era futura.
-14. `0014_taken_slots_rpc.sql` — RPC `taken_slots(artisan_id, from, to)` SECURITY DEFINER. Devuelve `(date, time, duration)` para todos los pending_bookings + appointments confirmadas del artist en el rango, SIN exponer PII (user_id, services, total). Booking customer la consume para marcar slots ocupados — evita doble booking.
+14. `0014_taken_slots_rpc.sql` — RPC `taken_slots(artisan_id, from, to)` SECURITY DEFINER. Devuelve `(slot_date, slot_time, slot_duration)` para todos los pending_bookings + appointments confirmadas del artist en el rango, SIN exponer PII (user_id, services, total). Booking customer la consume para marcar slots ocupados — evita doble booking.
+15. `0015_settings_to_miami.sql` — UPDATE idempotente del row salon_settings: city='Miami', address='Lincoln Road 1234', phone/whatsapp '+1 786...', currency='USD', timezone='America/New_York'. Solo dispara si los valores actuales coinciden con el seed europeo (Madrid/EUR/Europe/Madrid).
+16. `0016_favorites.sql` — tabla `favorites(user_id, kind, target_id)` PK compuesta. RLS owner-only. Tres kinds: 'product' | 'service' | 'artisan'.
+17. `0017_referrals.sql` — tabla `referrals(referrer_id, referee_id, code, status, applied_at)` con RLS owner + admin. Helpers: `my_referral_code()` deriva 8 chars upper del uuid del caller; `find_referrer_by_code(text)` reverse lookup.
+18. `0018_gift_cards.sql` — tabla `gift_cards` con código único, balance, sender/recipient, delivery_method (email/whatsapp/schedule), status. RLS sender ve sus envíos + redeemer ve sus canjes + admin cross-user. RPC `redeem_gift_card(text)` SECURITY DEFINER vincula al user actual usando el código.
+19. `0019_audit_log.sql` — tabla `audit_log` (bigserial, action insert/update/delete, before/after jsonb) append-only. Function `audit_trigger()` SECURITY DEFINER. Triggers en salon_settings y tier_rules.
+20. `0020_reminder_cron.sql` — `send_appointment_reminders()` PL/pgSQL que recorre appointments confirmed con date=mañana y dispara la Edge Function `send-appointment-email` con `kind=reminder` via `pg_net.http_post`. `cron.schedule` diario 10:00 UTC. Requiere extensions `pg_cron` + `pg_net` activadas y GUC settings `app.edge_url` + `app.edge_key`.
+21. `0021_audit_log_more_tables.sql` — extiende `audit_trigger()` para soportar product_id (product_stocks) y composite artisan_id:weekday (artisan_schedule_days). Triggers nuevos en products/services/artisans/promos/combos/product_stocks/artisan_schedule_days.
 
 ### Promoverse a admin
 
@@ -187,122 +206,139 @@ update profiles set is_admin = true where email = 'tu@email.com';
 ```
 src/
 ├─ App.tsx                  # providers + RootLayout decide customer/admin
-├─ main.tsx                 # ReactDOM root + QueryClientProvider
-├─ vite-env.d.ts            # types de import.meta.env
+├─ main.tsx                 # ReactDOM root + QueryClientProvider + Sentry boundary
+├─ vite-env.d.ts            # types de import.meta.env (incluye VITE_SENTRY_DSN)
 ├─ lib/
 │  ├─ supabase.ts           # singleton client (PKCE)
 │  ├─ query.ts              # QueryClient (5min stale, 30min gc)
-│  └─ db.ts                 # ~1000 líneas. fetchers + mutators + mappers DB→TS
+│  ├─ db.ts                 # ~1700 líneas. fetchers + RPC wrappers + mappers
+│  ├─ format.ts             # useCurrency() + currencySymbol() + formatPrice()
+│  └─ sentry.ts             # initSentry + SentryErrorBoundary (no-op sin DSN)
 ├─ theme/                   # tokens (Noir + Marbre), ThemeProvider, global.css
-├─ i18n/                    # strings tipadas (~150 keys) + LangProvider
-├─ types/index.ts           # 18 tipos de dominio (incluye Address)
+├─ i18n/                    # strings tipadas + LangProvider (persiste en dsr-lang-v1)
+├─ types/index.ts           # 22+ tipos de dominio
 ├─ data/
 │  ├─ catalog.ts            # PRODUCTS, SERVICES, ARTISANS (seeds para initialData)
 │  ├─ nails.ts              # NAIL_LOOKS seed
-│  ├─ giftcards.ts          # GIFTCARD_DESIGNS, USER_GIFTCARDS
+│  ├─ giftcards.ts          # GIFTCARD_DESIGNS (catálogo de diseños — distinto de gift_cards table)
 │  ├─ tiers.ts              # TIERS + PERKS
 │  ├─ user.ts               # USER + STORIES (mock cliente — fallback guest)
 │  ├─ images.ts             # AI_IMG via pollinations + I() resolver de slugs
-│  ├─ helpers.ts            # findX estáticos (solo validación) + buildSchedule
+│  ├─ helpers.ts            # findX estáticos + tierFor/nextTier + buildSchedule (con collision)
 │  ├─ avatars.ts            # 10 retratos editoriales para AvatarPicker
 │  ├─ combos.ts             # SEED_COMBOS
 │  ├─ admin-seeds.ts        # seeds de stocks, promos, schedules, tier rules, reviews, settings
 │  ├─ service-variants.ts   # SEED_VARIANTS
 │  ├─ us-states.ts          # US_STATES + detectLabelType + AddressLabelType
 │  ├─ useUserData.ts        # hook EffectiveUser (profile real o mock)
-│  ├─ AppointmentsProvider.tsx  # session-aware: guest seed vs user namespaced
+│  ├─ legal.ts              # copy bilingüe cancellation/terms/privacy
+│  ├─ calendar.ts           # buildIcsEvent + downloadIcs (sin libs)
+│  ├─ AppointmentsProvider.tsx  # session-aware: USER seed guest, DB query authed
 │  ├─ CatalogProvider.tsx   # single source of truth: DB via TanStack Query
-│  └─ UserProvider.tsx      # auth + profile + isAdmin (derived from profile.is_admin)
+│  ├─ FavoritesProvider.tsx # session-aware: localStorage guest, DB authed
+│  └─ UserProvider.tsx      # auth + profile + avatar + refreshProfile + theme/lang sync
 ├─ cart/CartProvider.tsx    # session-aware: localStorage guest, DB authed, auto-merge
 ├─ router/Router.tsx        # state machine
 ├─ components/
 │  ├─ atoms/                # Typography, Icon, Buttons, Layout, Chrome,
-│  │                        # TopChrome, CartDrawer, AvatarPicker
+│  │                        # TopChrome, CartDrawer, AvatarPicker, PromoInput,
+│  │                        # RateStars, Skeleton, SearchOverlay, Toast
+│  ├─ ReviewsSection.tsx
 │  └─ GiftCardVisual.tsx
-├─ screens/                 # 21 pantallas customer
+├─ screens/                 # 23 pantallas customer (ver lista abajo)
 └─ admin/
-   ├─ AdminApp.tsx          # shell desktop con sidebar de 14 secciones
+   ├─ AdminApp.tsx          # shell desktop con sidebar de 15 secciones
    ├─ AdminGate.tsx         # bloquea acceso si !isAdmin
    ├─ SidePanel.tsx         # drawer lateral genérico para forms
-   └─ sections/             # 14 sections operativas
+   └─ sections/             # 15 sections operativas
 
-supabase/migrations/        # 0001..0006.sql
+supabase/
+├─ migrations/              # 0001..0021.sql
+├─ email-templates/
+│  └─ magic-link.html       # pegar manual en Supabase Dashboard → Auth → Email Templates
+└─ functions/
+   └─ send-appointment-email/
+      └─ index.ts            # Deno + Resend. kind: confirmation | reminder
+
+src/data/helpers.test.ts          # vitest, 16 tests (tierFor, nextTier, buildSchedule)
+src/data/calendar.test.ts         # vitest, 12 tests (buildIcsEvent)
+public/
+├─ favicon.svg              # SVG inline DSR (usado por manifest + apple-touch-icon)
+└─ manifest.webmanifest     # PWA manifest mínimo
 ```
 
-**21 pantallas customer:** `Onboarding`, `Auth`, `Home`, `Services`, `ServiceDetail`, `ArtisanProfile`, `Booking` (4 pasos + edit mode), `AppointmentDetail`, `Rewards`, `Shop`, `ProductDetail`, `Bag`, `CheckoutSuccess`, `Profile`, `PersonalInfo`, `Addresses`, `NailAtelier`, `NailLookDetail`, `GiftCards`, `GiftBuy` (3 pasos), `GiftMine`.
+**23 pantallas customer:** `Onboarding`, `Auth`, `Home`, `Services`, `ServiceDetail`, `ArtisanProfile`, `Booking` (4 pasos + edit mode + reschedule), `AppointmentDetail`, `Rewards`, `Shop`, `ProductDetail`, `Bag`, `CheckoutSuccess`, `Profile`, `PersonalInfo`, `Addresses`, `NailAtelier`, `NailLookDetail`, `GiftCards`, `GiftBuy` (3 pasos), `GiftMine`, `Legal` (3 docs en tabs), `Favorites`.
 
-**14 secciones admin:** `Variants`, `Products`, `Services`, `Combos`, `Artisans`, `Schedules`, `Appointments`, `Inventory`, `Points`, `GiftCards`, `Promotions`, `Reviews`, `Reports`, `Settings`. Todas escriben a Postgres con RLS por rol. `StubSection.tsx` queda para futuras secciones.
+**15 secciones admin:** `Variants`, `Products`, `Services`, `Combos`, `Artisans`, `Schedules`, `Appointments`, `Inventory`, `Points`, `GiftCards`, `Promotions`, `Reviews`, `Reports`, `Settings`, `AuditLog`. Todas escriben a Postgres con RLS por rol. `StubSection.tsx` queda para futuras secciones.
 
 ---
 
-## Backlog (post-auditoría)
+## Backlog
 
-Items priorizados por urgencia, con la decisión del usuario sobre cada uno.
-Lo que está **en curso/abierto** lo voy ejecutando en orden; lo que está **en hold** queda documentado para retomar más adelante.
+### Resuelto
+- **Vercel deploy** ✅
+- **SMTP custom Supabase** ✅ (Pro plan)
+- **Migrations 0007-0021 aplicadas en Supabase** ✅
+- **Email template magic link bilingüe** ✅ pegado en dashboard
+- **Currency display refactor** ✅ (Bundle 1 de Fase 9 — `857c9a3`).
+- **Audit log expandido** ✅ (migration 0021 — `975d12f`).
+- **Reminder cron infrastructure** ✅ código listo (migration 0020 + Edge Function `kind=reminder`). Activación pendiente: ver "En hold > Resend".
 
 ### En hold (decisión del usuario, no perder de vista)
+
+**Pagos / autenticación externa** (todos requieren cuentas o developer accounts):
 - **Apple Pay real** — Stripe SetupIntent + Apple Developer Account ($99/año). Mock visual hoy.
 - **OAuth Apple / Google** — botones en `Auth.tsx` con badge "Próximamente". Requiere Apple Dev + Google Cloud Console.
 - **WhatsApp login** — provider externo (Wassenger / Twilio Verify).
 - **Phone login + Web OTP** — depende de configurar SMS provider en Supabase (Twilio).
+
+**Sentry — error tracking en producción**:
+- Código instalado y listo (`src/lib/sentry.ts` + `<SentryErrorBoundary>` global). No-op hoy porque `VITE_SENTRY_DSN` está vacío.
+- Para activar:
+  1. Crear cuenta en [sentry.io](https://sentry.io/signup/) → New Project → React → name `dsr-maison`.
+  2. Copiar DSN desde Settings → Projects → dsr-maison → Client Keys.
+  3. Vercel → Settings → Environment Variables → add `VITE_SENTRY_DSN` con el valor (Production + Preview, NO Development).
+  4. Redeploy. Verificar con `throw new Error("test")` en consola producción → debe aparecer en Sentry Issues.
+
+**Resend — emails transaccionales (cita confirmada + recordatorio 24h)**:
+- Edge Function `supabase/functions/send-appointment-email/` lista, código cliente conectado en `CheckoutSuccess`. Migration 0020 con cron diario aplicada (job `dsr_appointment_reminders` programado pero falla silencio sin secrets).
+- Para activar:
+  1. Crear cuenta en [resend.com](https://resend.com) (free 3k/mes).
+  2. **Verificar dominio sender** (`dsr-maison.com`) — agregar 4 DNS records (1 MX + 3 TXT) que Resend muestra. O skip esta paso y usar sandbox `onboarding@resend.dev` (solo manda al email del owner del proyecto).
+  3. Generar API Key (Sending Access).
+  4. Setear secrets via Supabase CLI:
+     ```bash
+     supabase login
+     supabase link --project-ref scruipyuxewznlrujjgk
+     supabase secrets set RESEND_API_KEY=re_xxx
+     supabase secrets set EMAIL_FROM='DSR Maison <reservas@dsr-maison.com>'
+     supabase functions deploy send-appointment-email
+     ```
+  5. Para que el cron funcione: habilitar `pg_cron` y `pg_net` en Dashboard → Database → Extensions, después en SQL Editor:
+     ```sql
+     alter database postgres set app.edge_url = 'https://scruipyuxewznlrujjgk.supabase.co/functions/v1';
+     alter database postgres set app.edge_key = '<anon-key>';
+     ```
+  6. Test:
+     - Confirmation: hacer checkout autenticado → email "Tu cita está confirmada".
+     - Reminder manual: `select send_appointment_reminders();` en SQL Editor.
+
+**Features de catálogo / contenido**:
 - **Recomendaciones AI reales en Home** — hoy el "96% match" es hardcoded.
 - **Stories de artisans** — cards estáticas sin contenido al click.
-- **PWA manifest + service worker** — instalable como app, offline support.
+- **Imágenes de producción** — todo el catálogo viene de pollinations.ai (cold-start 10-30s). Migrar a Supabase Storage cuando haya assets finales. También subir `public/og-image.png` (1200x630) + descomentar en `index.html`.
+
+**Plataforma**:
+- **PWA manifest + service worker** — instalable como app, offline support. Manifest mínimo ya existe (`public/manifest.webmanifest`); falta service worker para offline.
 - **Roles admin granulares** — hoy `is_admin` es flag binario; manager / artist / recepcionista pendiente.
-- **Imágenes de producción** — todo el catálogo viene de pollinations.ai (cold-start 10-30s). Migrar a Supabase Storage cuando haya assets finales.
 - **Multi-tenant** — `tenant_id` en todas las tablas para múltiples sedes.
 
-### Resuelto
-- **Vercel deploy** ✅
-- **SMTP custom** ✅ (Supabase Pro plan)
-- **Migrations 0007-0014 aplicadas en Supabase** ✅
-- **Email template magic link bilingüe** ✅ pegado en dashboard
-
-### En ejecución (sprint actual)
-Bundles que estoy ejecutando consecutivamente sin esperar entre commits:
-1. **SEO básico** — Open Graph, favicon real, meta description.
-2. **Toast + loading skeletons globales** — atom infra para mutations.
-3. **Timezone Miami** — `salon_settings.timezone` = America/New_York; ajustes display.
-4. **Política de cancelación + términos** — modal/screen accesible, copy bilingüe con depósito tier-based.
-5. **Customer ve "Cancelada" distinta de "Pasada"**.
-6. **Calendar export (.ics)** — botón "Añadir al calendario" en Booking.
-7. **Favoritos** — tabla + UI mínima.
-8. **Buscador del TopChrome funcional**.
-9. **Code splitting** — lazy load admin + screens grandes.
-10. **Reagendar marca cita vieja como cancelada**.
-11. **Programa "amigas" / referidos** — link único por user, AMIGA50 funcional.
-12. **Gift cards reales** — tabla + flow de compra/canje.
-13. **Audit log admin** — quién cambió qué.
-14. **Tests críticos** — Vitest + RTL; checkout, tier multipliers, buildSchedule collision.
-15. **Sentry** — error tracking en producción.
-16. **Notificaciones email transaccional** — confirmación cita + recordatorio 24h. Necesita email del salón decidido.
-
-> Acción pendiente del usuario: confirmar email de "no-reply" del salón (ej: `hola@dsr-maison.com` ya en settings o uno separado tipo `reservas@`).
-
-### Conocidos a refactorear en otra pasada
-- **Currency display** — 48 sitios (`€{x}`) hardcoded en `src/screens/*` y `src/admin/sections/*`. La sede cambió a Miami con `currency = 'USD'`, pero solo `ReportsSection` lee `settings.currency` para el símbolo. Sitios customer (Bag, CartDrawer, ProductDetail, ServiceDetail, Booking, AppointmentDetail, NailLookDetail, Home, Profile) y los admin (CatalogList, CombosSection, VariantsSection, etc) muestran "€". Plan: helper `formatCurrency(n, settings.currency)` o hook `useCurrencySymbol()` + reemplazo en sitios customer-facing primero.
-
-### Activar Edge Function de email (Bundle P)
-
-`CheckoutSuccess` ya invoca `supabase.functions.invoke('send-appointment-email', ...)` tras un checkout autenticado exitoso. Sin la function deployed, los logs muestran un error pero la UX no se rompe.
-
-Para activarla:
-
-1. Crear cuenta en [resend.com](https://resend.com) (free 3.000 emails/mes).
-2. Verificar dominio sender (ej. `dsr-maison.com`) o usar el sandbox `onboarding@resend.dev` para pruebas.
-3. Generar API key.
-4. Setear secrets en Supabase:
-   ```bash
-   supabase secrets set RESEND_API_KEY=re_xxx
-   supabase secrets set EMAIL_FROM='DSR Maison <reservas@dsr-maison.com>'
-   ```
-5. Deploy:
-   ```bash
-   supabase functions deploy send-appointment-email
-   ```
-6. Probar checkout y verificar que llegue email a la inbox del user.
-
-Recordatorio 24h antes de la cita queda como follow-up — requiere `pg_cron` que dispare la function diariamente.
+### Conocidos a refactorear / mejorar
+- **Lógica de aplicar crédito al referrer** (Bundle K Fase 9) — la tabla `referrals` y el código del usuario están listos, pero al primer checkout del referee no se da crédito al referrer. Depende de pagos reales para aplicar el descuento.
+- **Redención de gift cards en checkout** — tabla `gift_cards` lista (migration 0018) + RPC `redeem_gift_card` lista, pero al hacer checkout no se descuenta del balance ni se aplica al total. Depende de Stripe.
+- **Code splitting de vendor** — index.js sigue ~590 kB (gzip 164 kB). Partir React + Supabase + TanStack vía `build.rollupOptions.output.manualChunks` bajaría a ~100-200 kB de app.
+- **Currency en helpers que NO son hooks** — algunos sub-componentes en admin (Editor inside SidePanel) tienen su propio `useCurrency()` instead de recibir prop. Funciona pero repite la lookup. Refactor menor.
+- **Multi-booking email** — `CheckoutSuccess` solo envía email del primer pending. Si el customer agendó 2+, los demás no se confirman por mail. Iteración futura: agruparlos en un solo email o mandar uno por cada uno.
 
 ---
 
